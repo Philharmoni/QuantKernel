@@ -1,0 +1,103 @@
+version: 1
+calendar_exchange: SSE
+price_adjustment: raw_times_adj_factor
+
+financial:
+  announcement_rule: max_ann_and_f_ann_then_next_trade_day
+  report_types: ['1']
+  # This filter applies only to cumulative-quarter/TTM derivation.
+  # financial_available retains all original report types and versions.
+  cumulative_fields:
+    income_vip: [revenue, n_income_attr_p]
+    cashflow_vip: [n_cashflow_act]
+  point_in_time_fields:
+    balancesheet_vip: [total_assets]
+  non_cumulative_fields:
+    fina_indicator: [eps]
+  missing_quarter_policy: null_with_reason
+  announcement_time_available: false
+  version_identity: full_record_hash
+  same_effective_date_metric_conflict_policy: null_with_ambiguous
+  update_flag_is_tiebreaker: false
+  invalid_announcement_policy: preserve_raw_exclude_available
+  missing_metric_policy: preserve_null
+
+security_identity:
+  code_validation: preserve_provider_code_with_exchange_suffix
+  listing_start_rule: stock_basic_list_date
+  preserve_quotations_before_list_date: true
+  preserve_basic_securities_without_quotations: true
+  unmatched_financial_codes: preserve_source_code_without_invented_mapping
+  historical_market_membership_before_list_date: unknown
+
+universe_rules:
+  - universe_id: all_a
+    exclude_st: false
+    exclude_bj: false
+    min_listing_trade_days: 0
+  - universe_id: all_a_ex_st
+    exclude_st: true
+    exclude_bj: false
+    min_listing_trade_days: 0
+  - universe_id: all_a_ex_st_ipo120
+    exclude_st: true
+    exclude_bj: false
+    min_listing_trade_days: 120
+  - universe_id: all_a_ex_st_ipo120_ex_bj
+    exclude_st: true
+    exclude_bj: true
+    min_listing_trade_days: 120
+
+trade_status:
+  limit_events_complete: false
+  suspension_events_complete: true
+  suspension_complete_code_suffixes: ['SH', 'SZ']
+  coverage_start: '20180601'
+  coverage_end: '20260911'
+  limit_coverage_start: '20200102'
+  limit_coverage_end: '20260911'
+  limit_event_codes:
+    limit_up: U
+    limit_down: D
+    opened_limit_up: Z
+  intraday_suspension_policy: conservative_block_with_explicit_reason
+  notes: >-
+    suspension_events_complete仅适用于本次已核对的20180601至20260911范围：
+    2012个日分区与SSE交易日完整对应；否定停牌事实仅对SH/SZ代码成立。
+    41,318条BJ停复牌事件无法匹配当前代码，缺少历史换码映射，BJ未观测状态未知。
+    源包含S停牌、R复牌和999条非空日内timing；
+    日内停牌不可声称全天无法成交，V1若保守禁止须标注日内原因。
+    limit_list_d不含ST股票统计，缺失事件或2020前不能推断为未触及涨跌停；
+    缺行情不能自动标记为停牌。可买和可卖结论须保留未知/缺源理由。
+
+capabilities:
+  historical_st:
+    status: deferred
+    reason: 缺少带生效区间的历史ST/*ST或完整更名源；当前stock_basic.name和零散事件名称不能回填历史。依赖此能力的三个ex_st样本空间暂不构建。
+  historical_name_changes:
+    status: deferred
+    reason: 原始README和69个业务目录均无完整历史更名区间表；当前证券名称仅保留为快照元数据。
+  historical_delisting_period:
+    status: deferred
+    reason: stock_basic仅有list_date/delist_date，缺少退市整理期起止日期，不能从退市日期倒推。
+  exact_listing_age_before_calendar:
+    status: deferred
+    reason: SSE日历从20180601开始，早于该日上市股票的完整上市交易日数缺少原始日历；不得把覆盖起点当成上市日或编造精确年龄。
+  stock_daily_limit_prices:
+    status: deferred
+    reason: 股票原始表无逐股逐日up_limit/down_limit；limit_list_d仅是不含ST的事件表，ft_limit属于期货。完整股票双向限价与缺事件方向性结论暂缺源。
+  missing_financial_quarters:
+    status: deferred
+    reason: 三张VIP财务首期为20180630，缺20180331，部分股票还缺中间季度；20260630三张表各仅1行。只对真实齐备版本计算单季/TTM，缺失值及受影响输出留空并报告，不补造。
+  announcement_timestamps:
+    status: deferred
+    reason: 财务表提供公告日期而非公告时刻；V1执行日期后下一交易日滞后，盘中精确可见性暂不实现。
+  financial_revision_archive:
+    status: limited
+    reason: 保留现有源记录的版本与冲突，但当前目录不能证明保存了数据供应商历史上每次修订前的全部快照。
+  historical_security_code_mapping:
+    status: deferred
+    reason: 财务源含不能匹配当前stock_basic的历史代码，尤其旧北交所代码；缺少带生效日期且可核验的历史换码映射。保留原始代码和所有财务记录，不能以内连接当前证券表丢弃或猜测代码映射。全量行情代码均匹配当前stock_basic，无行情orphan。
+  historical_market_membership:
+    status: deferred
+    reason: 北交所股票存在早于当前stock_basic.list_date的历史报价，缺少可靠的跨市场身份生效区间。保留报价，但A股上市身份以明确list_date为起点，不将当前北交所身份回溯到早期报价。

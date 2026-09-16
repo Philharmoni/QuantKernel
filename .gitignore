@@ -1,4 +1,48 @@
-data
+# Raw and derived data are local-only; raw data is read-only.
+/data/
+/data_middle/
+/data_sample/
+/reports/
+/logs/
+
+# Large generated data artifacts.
+*.parquet
+!tests/fixtures/**/*.parquet
+*.feather
+*.duckdb
+*.duckdb.wal
+*.db
+*.sqlite
+*.sqlite3
+*.tmp
+*.tar.gz
+*.zip
+*.7z
+
+# Local environment and machine-specific config.
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+/config/local.toml
+/configs/local.toml
+
+# Python artifacts.
 *.log
-*.pyc
+*.py[cod]
 __pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+dist/
+build/
+*.egg-info/
+
+# OS/editor noise.
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

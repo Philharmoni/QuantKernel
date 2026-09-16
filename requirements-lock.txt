@@ -1,0 +1,10 @@
+# Verified local environment, Python 3.13; re-resolve for other Python versions.
+PyYAML==6.0.3
+pyarrow==25.0.1
+duckdb==1.5.5
+pytest==9.1.1
+colorama==0.4.6
+iniconfig==2.3.0
+packaging==26.3
+pluggy==1.6.0
+Pygments==2.21.0

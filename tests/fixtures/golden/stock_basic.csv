@@ -1,0 +1,6 @@
+ts_code,symbol,name,market,exchange,curr_type,list_status,list_date,delist_date
+000001.SZ,000001,Synthetic ordinary,主板,SZSE,CNY,L,20181217,
+000002.SZ,000002,Synthetic ST history,主板,SZSE,CNY,L,20181217,
+000003.SZ,000003,Synthetic IPO,主板,SZSE,CNY,L,20190109,
+600001.SH,600001,Synthetic delisted,主板,SSE,CNY,D,20181217,20190123
+830001.BJ,830001,Synthetic Beijing,北交所,BSE,CNY,L,20181217,

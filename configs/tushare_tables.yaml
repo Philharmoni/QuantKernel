@@ -1,0 +1,947 @@
+# Schema fields verified against actual source Parquet; candidate keys are not uniqueness guarantees.
+version: 1
+tables:
+  balancesheet_vip:
+    path: balancesheet_vip/**/*.parquet
+    purpose: 资产负债表 VIP，全市场按报告期保存。
+    primary_key:
+    - ts_code
+    - end_date
+    - report_type
+    - ann_date
+    - f_ann_date
+    date_fields:
+    - ann_date
+    - f_ann_date
+    - end_date
+    code_field: ts_code
+    required_fields:
+    - ts_code
+    - end_date
+    - report_type
+    - ann_date
+    - f_ann_date
+    - update_flag
+    - total_assets
+    stage1: true
+    notes: 33期20180630至20260630；保留版本冲突与ann_date/f_ann_date，不保证候选键唯一。total_assets等为时点余额，不做累计差分/TTM求和；20260630分区仅1行，保留缺失而不补造。
+      全量画像发现31组相同候选键对应不同完整记录；financial_available按完整记录哈希保留版本。同一生效日、报告期、字段存在冲突时标ambiguous并留空，不用update_flag任意择一。 财务旧代码与当前stock_basic不能全部匹配；原始代码和记录保留，不以内连接丢弃或编造历史代码映射。
+  block_trade:
+    path: block_trade/**/*.parquet
+    purpose: 大宗交易，按交易日分区。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  broker_recommend:
+    path: broker_recommend/**/*.parquet
+    purpose: 券商月度金股，按月份保存；官方单次最大 1000 行。
+    primary_key: []
+    date_fields: []
+    code_field: ts_code
+    required_fields:
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。 月/季度列month保留原字段，不作为YYYYMMDD日字段解析。
+  cashflow_vip:
+    path: cashflow_vip/**/*.parquet
+    purpose: 现金流量表 VIP，全市场按报告期保存。
+    primary_key:
+    - ts_code
+    - end_date
+    - report_type
+    - ann_date
+    - f_ann_date
+    date_fields:
+    - ann_date
+    - f_ann_date
+    - end_date
+    code_field: ts_code
+    required_fields:
+    - ts_code
+    - end_date
+    - report_type
+    - ann_date
+    - f_ann_date
+    - update_flag
+    - n_cashflow_act
+    stage1: true
+    notes: 33期20180630至20260630；候选键不保证真实唯一。按max(ann_date,f_ann_date)后交易日可见；仅配置累计字段及report_type=1进入季度/TTM，保留版本。首期缺2018Q1，末期20260630仅1行。
+      全量画像发现2组相同候选键对应不同完整记录；按完整记录哈希保留版本。同生效日同报告期同指标冲突时单季/TTM留NULL并标ambiguous；金额缺失不填0。 财务旧代码与当前stock_basic不能全部匹配；原始代码和记录保留，不以内连接丢弃或编造历史代码映射。
+  ci_daily:
+    path: ci_daily/**/*.parquet
+    purpose: 中信行业指数日行情，按交易日分区。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  ci_index_member:
+    path: ci_index_member/**/*.parquet
+    purpose: 中信行业分级成分，按股票池逐只拉取后合并为单文件。
+    primary_key: []
+    date_fields:
+    - in_date
+    - out_date
+    code_field: ts_code
+    required_fields:
+    - in_date
+    - out_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  cn_cpi:
+    path: cn_cpi/**/*.parquet
+    purpose: 中国 CPI 月度数据，单文件保存。
+    primary_key: []
+    date_fields: []
+    code_field: null
+    required_fields: []
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。 月/季度列month保留原字段，不作为YYYYMMDD日字段解析。
+  cn_m:
+    path: cn_m/**/*.parquet
+    purpose: 中国货币供应量月度数据，单文件保存。
+    primary_key: []
+    date_fields: []
+    code_field: null
+    required_fields: []
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。 月/季度列month保留原字段，不作为YYYYMMDD日字段解析。
+  cn_pmi:
+    path: cn_pmi/**/*.parquet
+    purpose: 中国 PMI 月度数据，单文件保存。
+    primary_key: []
+    date_fields: []
+    code_field: null
+    required_fields: []
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。 月/季度列MONTH保留原字段，不作为YYYYMMDD日字段解析。
+  cyq_perf:
+    path: cyq_perf/**/*.parquet
+    purpose: 每日筹码成本和胜率，按股票代码保存。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  dc_concept:
+    path: dc_concept/**/*.parquet
+    purpose: 东方财富题材库，2026-02-03 起，按交易日分区。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: null
+    required_fields:
+    - trade_date
+    stage1: false
+    notes: README给接口历史20260203起，实际本地首日分区为20260417；接口起点不能当成本地覆盖。主题代码theme_code不是股票代码。未用于本阶段派生；主键未确认。
+  dc_concept_cons:
+    path: dc_concept_cons/**/*.parquet
+    purpose: 东方财富题材成分，2026-02-03 起，按交易日分区；每个交易日先取 dc_concept 题材代码再循环成分。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: README给接口历史20260203起，实际本地首日分区为20260417；本地范围须从画像读取。未用于本阶段派生；主键未确认。
+  dc_daily:
+    path: dc_daily/**/*.parquet
+    purpose: 东财概念/行业/地域板块行情，按交易日分区。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  dc_hot:
+    path: dc_hot/**/*.parquet
+    purpose: 东方财富 App 热榜，默认抓 A 股人气榜最新榜，22:35 后 is_new=Y 更稳定。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  dc_index:
+    path: dc_index/**/*.parquet
+    purpose: 东方财富板块每日列表，含概念/行业/地域，按交易日分区。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  dc_member:
+    path: dc_member/**/*.parquet
+    purpose: 东方财富板块历史成分，按交易日分区；每个交易日先取 dc_index 板块代码再循环成分。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: con_code
+    required_fields:
+    - trade_date
+    - con_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  dividend:
+    path: dividend/**/*.parquet
+    purpose: 分红送股，官方未给明确每分钟次数，按 500/min 本地限速。
+    primary_key: []
+    date_fields:
+    - end_date
+    - ann_date
+    - record_date
+    - ex_date
+    - pay_date
+    - div_listdate
+    - imp_ann_date
+    code_field: ts_code
+    required_fields:
+    - end_date
+    - ann_date
+    - record_date
+    - ex_date
+    - pay_date
+    - div_listdate
+    - imp_ann_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  etf_basic:
+    path: etf_basic/**/*.parquet
+    purpose: ETF 基础信息，L/D/P 状态合并为单文件。
+    primary_key: []
+    date_fields:
+    - setup_date
+    - list_date
+    code_field: ts_code
+    required_fields:
+    - setup_date
+    - list_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  express_vip:
+    path: express_vip/**/*.parquet
+    purpose: 业绩快报 VIP，全市场按报告期保存；官方未给明确每分钟次数，按 500/min 本地限速。
+    primary_key: []
+    date_fields:
+    - ann_date
+    - end_date
+    code_field: ts_code
+    required_fields:
+    - ann_date
+    - end_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  fina_indicator:
+    path: fina_indicator/**/*.parquet
+    purpose: 财务指标数据，按股票代码保存；普通接口每次最多 100 条。
+    primary_key:
+    - ts_code
+    - end_date
+    - ann_date
+    date_fields:
+    - ann_date
+    - end_date
+    code_field: ts_code
+    required_fields:
+    - ts_code
+    - end_date
+    - ann_date
+    - update_flag
+    stage1: true
+    notes: 实际按股票5849文件保存，首样本000001.SZ报告期20180630至20260630；仅有ann_date，无f_ann_date或公告时刻。V1按ann_date后交易日可见并标注能力；更新版本保留，比率/每股指标不自动累计差分。字段拼写以真实schema为准。
+      实测9条ann_date为字面字符串None，保留原始值并标invalid_announcement，不能成为可见财务记录或用报告期补公告日。财务源中旧代码不匹配当前stock_basic时仍保留，跨历史代码映射暂挂。
+  forecast_vip:
+    path: forecast_vip/**/*.parquet
+    purpose: 业绩预告 VIP，全市场按报告期保存；官方未给明确每分钟次数，按 500/min 本地限速。
+    primary_key: []
+    date_fields:
+    - ann_date
+    - end_date
+    - first_ann_date
+    code_field: ts_code
+    required_fields:
+    - ann_date
+    - end_date
+    - first_ann_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  ft_limit:
+    path: ft_limit/**/*.parquet
+    purpose: 中金所股指期货与国债期货涨跌停价及保证金率，按交易日分区；盘前数据。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 仅中金所期货每日涨跌停价及保证金数据，不能作为A股股票up_limit/down_limit来源。未用于本阶段派生；主键未确认。
+  fund_adj:
+    path: fund_adj/**/*.parquet
+    purpose: ETF 复权因子，按交易日分区；单日超限时 offset/limit 分页。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  fund_daily:
+    path: fund_daily/**/*.parquet
+    purpose: ETF 日线行情，按交易日分区。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  fund_portfolio:
+    path: fund_portfolio/**/*.parquet
+    purpose: 公募基金持仓，按报告期保存。
+    primary_key: []
+    date_fields:
+    - ann_date
+    - end_date
+    code_field: symbol
+    required_fields:
+    - ann_date
+    - end_date
+    - symbol
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  fut_basic:
+    path: fut_basic/**/*.parquet
+    purpose: 中金所股指期货与国债期货普通合约信息，单文件保存。
+    primary_key: []
+    date_fields:
+    - list_date
+    - delist_date
+    - last_ddate
+    code_field: ts_code
+    required_fields:
+    - list_date
+    - delist_date
+    - last_ddate
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。 月/季度列d_month保留原字段，不作为YYYYMMDD日字段解析。
+  fut_daily:
+    path: fut_daily/**/*.parquet
+    purpose: 中金所股指期货与国债期货普通合约日线，按交易日分区。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  fut_mapping:
+    path: fut_mapping/**/*.parquet
+    purpose: 中金所股指期货与国债期货主力合约到月合约映射，按交易日分区。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  hk_hold:
+    path: hk_hold/**/*.parquet
+    purpose: 沪深港股通持股明细，单次最多 3800；按 400/min 本地限速。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  hm_detail:
+    path: hm_detail/**/*.parquet
+    purpose: 游资每日明细，数据历史从 2022-08 开始。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  hsgt_top10:
+    path: hsgt_top10/**/*.parquet
+    purpose: 沪深股通十大成交股，官方未给明确每分钟次数，按 500/min 本地限速。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  income_vip:
+    path: income_vip/**/*.parquet
+    purpose: 利润表 VIP，全市场按报告期保存。
+    primary_key:
+    - ts_code
+    - end_date
+    - report_type
+    - ann_date
+    - f_ann_date
+    date_fields:
+    - ann_date
+    - f_ann_date
+    - end_date
+    code_field: ts_code
+    required_fields:
+    - ts_code
+    - end_date
+    - report_type
+    - ann_date
+    - f_ann_date
+    - update_flag
+    - revenue
+    - n_income_attr_p
+    stage1: true
+    notes: 33个报告期分区20180630至20260630；候选键不保证真实唯一，保留冲突及版本。ann_date与f_ann_date实际可不同；可用日为两者非空最大值后的下一个SSE交易日。available层保留全部report_type，累计单季/TTM只处理配置的1类型。20260630分区仅1行，不代表全市场完整。
+      全量画像发现6组相同候选键对应不同完整记录；002961.SZ/20250630存在update_flag相同仍冲突的记录。按完整记录哈希保留版本，同生效日同报告期同指标冲突的单季/TTM留NULL并标ambiguous；revenue等金额缺失不填0。
+      财务旧代码与当前stock_basic不能全部匹配；原始代码和记录保留，不以内连接丢弃或编造历史代码映射。
+  index_classify:
+    path: index_classify/**/*.parquet
+    purpose: 申万行业分类字典，拉取 SW2021 的 L1/L2/L3 后合并为单文件。
+    primary_key: []
+    date_fields: []
+    code_field: null
+    required_fields: []
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  index_daily:
+    path: index_daily/**/*.parquet
+    purpose: 指数日线行情，按日分区；本阶段仅登记和画像。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 原始README已登记此目录；首文件20190102.parquet，真实schema含ts_code/trade_date及OHLC。仅登记和画像，不用于本阶段派生；主键未确认。
+  index_member_all:
+    path: index_member_all/**/*.parquet
+    purpose: 申万行业分级成分，按目标股票集合拉取后合并为单文件。
+    primary_key: []
+    date_fields:
+    - in_date
+    - out_date
+    code_field: ts_code
+    required_fields:
+    - in_date
+    - out_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  index_weight:
+    path: index_weight/**/*.parquet
+    purpose: 五大指数月度成分和权重，每个指数一个总 parquet。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: con_code
+    required_fields:
+    - trade_date
+    - con_code
+    stage1: false
+    notes: README称五大指数，实际按指数有6个Parquet文件；保留真实文件数量，con_code为成分代码。未用于本阶段派生；主键未确认。
+  irm_qa_sh:
+    path: irm_qa_sh/**/*.parquet
+    purpose: 上证 e 互动问答，单次最大 3000；官方未给明确每分钟次数，按 500/min 本地限速。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  irm_qa_sz:
+    path: irm_qa_sz/**/*.parquet
+    purpose: 深证互动易问答，单次最大 3000；官方未给明确每分钟次数，按 500/min 本地限速。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  limit_list_d:
+    path: limit_list_d/**/*.parquet
+    purpose: A股涨跌停和炸板数据，按交易日分区。
+    primary_key:
+    - trade_date
+    - ts_code
+    - limit
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    - limit
+    - close
+    stage1: true
+    notes: 20200102至20260911共1624日分区；limit仅为U涨停/D跌停/Z炸板事件，不含每日up_limit/down_limit。官方不统计ST股票；未出现事件不保证未涨跌停，2020前亦无覆盖。
+  margin_detail:
+    path: margin_detail/**/*.parquet
+    purpose: 融资融券交易明细，按交易日分区。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  moneyflow:
+    path: moneyflow/**/*.parquet
+    purpose: 个股资金流向，按交易日分区。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  moneyflow_cnt_ths:
+    path: moneyflow_cnt_ths/**/*.parquet
+    purpose: 同花顺概念板块每日资金流向，按交易日分区。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  moneyflow_ind_ths:
+    path: moneyflow_ind_ths/**/*.parquet
+    purpose: 同花顺行业资金流向，单次最大 5000；官方未给明确每分钟次数，按 500/min 本地限速。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  pledge_detail:
+    path: pledge_detail/**/*.parquet
+    purpose: 股权质押明细，单次最大 1000；400/min 本地限速。
+    primary_key: []
+    date_fields:
+    - ann_date
+    - start_date
+    - end_date
+    - release_date
+    code_field: ts_code
+    required_fields:
+    - ann_date
+    - start_date
+    - end_date
+    - release_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  pledge_stat:
+    path: pledge_stat/**/*.parquet
+    purpose: 股权质押统计，单次最大 1000；官方未给明确每分钟次数，按 500/min 本地限速。
+    primary_key: []
+    date_fields:
+    - end_date
+    code_field: ts_code
+    required_fields:
+    - end_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  report_rc:
+    path: report_rc/**/*.parquet
+    purpose: 卖方盈利预测数据，以研报日期 report_date 分区；官方每晚 19-22 点更新。
+    primary_key: []
+    date_fields:
+    - report_date
+    code_field: ts_code
+    required_fields:
+    - report_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。 月/季度列quarter保留原字段，不作为YYYYMMDD日字段解析。
+  repurchase:
+    path: repurchase/**/*.parquet
+    purpose: 股票回购，以公告日 ann_date 分区。
+    primary_key: []
+    date_fields:
+    - ann_date
+    - end_date
+    - exp_date
+    code_field: ts_code
+    required_fields:
+    - ann_date
+    - end_date
+    - exp_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  share_float:
+    path: share_float/**/*.parquet
+    purpose: 限售股解禁，以公告日 ann_date 分区；按 400/min 本地限速。
+    primary_key: []
+    date_fields:
+    - ann_date
+    - float_date
+    code_field: ts_code
+    required_fields:
+    - ann_date
+    - float_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  shibor:
+    path: shibor/**/*.parquet
+    purpose: Shibor 日频利率，单文件保存。
+    primary_key: []
+    date_fields:
+    - date
+    code_field: null
+    required_fields:
+    - date
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  shibor_lpr:
+    path: shibor_lpr/**/*.parquet
+    purpose: LPR 报价利率，单文件保存。
+    primary_key: []
+    date_fields:
+    - date
+    code_field: null
+    required_fields:
+    - date
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  stk_auction_c:
+    path: stk_auction_c/**/*.parquet
+    purpose: 股票收盘 15:00 集合竞价数据，按交易日分区；官方单次最大 10000 行。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  stk_auction_o:
+    path: stk_auction_o/**/*.parquet
+    purpose: 股票开盘 9:30 集合竞价数据，按交易日分区；官方单次最大 10000 行。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  stk_factor_pro:
+    path: stk_factor_pro/**/*.parquet
+    purpose: 统一价格底座，只保留指定字段。
+    primary_key:
+    - trade_date
+    - ts_code
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - ts_code
+    - trade_date
+    - open
+    - high
+    - low
+    - close
+    - vol
+    - amount
+    - adj_factor
+    stage1: true
+    notes: 20180601至20260911共2012日分区；原始OHLC与adj_factor实际存在，另含qfq/hfq厂商字段但无pre_close。V1派生采用原始价格乘当日adj_factor，不按未来末日因子归一；原价保留。
+      全量行情没有未匹配stock_basic的代码。存在北交所代码早于当前list_date的报价：920017.BJ的list_date=20230531，但20180628至20220609有679条报价。保留全部价格，不能把当前北交所/A股身份回溯到这些较早报价；跨市场历史区间暂缺源。
+  stk_holdernumber:
+    path: stk_holdernumber/**/*.parquet
+    purpose: 股东人数，按股票代码保存。
+    primary_key: []
+    date_fields:
+    - ann_date
+    - end_date
+    code_field: ts_code
+    required_fields:
+    - ann_date
+    - end_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  stk_holdertrade:
+    path: stk_holdertrade/**/*.parquet
+    purpose: 股东增减持，以公告日 ann_date 分区。
+    primary_key: []
+    date_fields:
+    - ann_date
+    - begin_date
+    - close_date
+    code_field: ts_code
+    required_fields:
+    - ann_date
+    - begin_date
+    - close_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  stk_nineturn:
+    path: stk_nineturn/**/*.parquet
+    purpose: 神奇九转指标，固定 daily 频率，按股票代码保存。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  stk_surv:
+    path: stk_surv/**/*.parquet
+    purpose: 机构调研数据，按股票代码保存。
+    primary_key: []
+    date_fields:
+    - surv_date
+    code_field: ts_code
+    required_fields:
+    - surv_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  stock_basic:
+    path: stock_basic/**/*.parquet
+    purpose: 股票基础信息，单文件保存。
+    primary_key:
+    - ts_code
+    date_fields:
+    - list_date
+    - delist_date
+    code_field: ts_code
+    required_fields:
+    - ts_code
+    - curr_type
+    - name
+    - market
+    - exchange
+    - list_status
+    - list_date
+    - delist_date
+    stage1: true
+    notes: 当前快照5901行，L=5562、D=339；保留list_date/delist_date用于历史上市身份。name/list_status/market等当前属性不是历史状态区间；缺少更名、ST/*ST与退市整理期历史源。
+      全量行情代码均能匹配本表（orphan=0），但97个基础证券没有任何行情（96个D及上市日20260911的688801.SH），身份仍保留。北交所可能含上市前跨市场报价；明确上市身份以list_date为起点，不由更早价格提前上市。
+  suspend_d:
+    path: suspend_d/**/*.parquet
+    purpose: 每日停复牌信息，官方未给明确每分钟次数，按 500/min 本地限速。
+    primary_key: &id001
+    - ts_code
+    - trade_date
+    - suspend_type
+    - suspend_timing
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields: *id001
+    stage1: true
+    notes: 20180601至20260911的2012日分区覆盖SSE全部交易日。实测S=80103、R=4489；999条suspend_timing非空，包含日内停牌；空timing表示全天。候选键含允许为空的timing，不能将NULL或重复直接当作源不可用。S与R须分别解释。
+  sw_daily:
+    path: sw_daily/**/*.parquet
+    purpose: 申万行业指数日行情，按交易日分区。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  ths_daily:
+    path: ths_daily/**/*.parquet
+    purpose: 同花顺板块指数行情，按交易日分区。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  ths_hot:
+    path: ths_hot/**/*.parquet
+    purpose: 同花顺 App 热榜，默认抓热股最新榜，22:35 后 is_new=Y 更稳定。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  ths_index:
+    path: ths_index/**/*.parquet
+    purpose: 同花顺概念和行业指数清单，A 股全类型单文件。
+    primary_key: []
+    date_fields:
+    - list_date
+    code_field: ts_code
+    required_fields:
+    - list_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  ths_member:
+    path: ths_member/**/*.parquet
+    purpose: 同花顺当前概念/行业成分，先取 ths_index 再按板块代码循环成分。
+    primary_key: []
+    date_fields:
+    - in_date
+    - out_date
+    code_field: con_code
+    required_fields:
+    - in_date
+    - out_date
+    - con_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  top10_floatholders:
+    path: top10_floatholders/**/*.parquet
+    purpose: 前十大流通股东，按股票代码保存。
+    primary_key: []
+    date_fields:
+    - ann_date
+    - end_date
+    code_field: ts_code
+    required_fields:
+    - ann_date
+    - end_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  top10_holders:
+    path: top10_holders/**/*.parquet
+    purpose: 前十大股东，按股票代码保存。
+    primary_key: []
+    date_fields:
+    - ann_date
+    - end_date
+    code_field: ts_code
+    required_fields:
+    - ann_date
+    - end_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  top_inst:
+    path: top_inst/**/*.parquet
+    purpose: 龙虎榜机构交易明细，按交易日分区。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  top_list:
+    path: top_list/**/*.parquet
+    purpose: 龙虎榜每日明细，按交易日分区。
+    primary_key: []
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    stage1: false
+    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  trade_cal:
+    path: trade_cal/**/*.parquet
+    purpose: 交易日历，单文件保存。
+    primary_key:
+    - exchange
+    - cal_date
+    date_fields:
+    - cal_date
+    - pretrade_date
+    code_field: null
+    required_fields:
+    - exchange
+    - cal_date
+    - is_open
+    - pretrade_date
+    stage1: true
+    notes: 实际为trade_cal_SSE.parquet和trade_cal_CFFEX.parquet两个文件，均覆盖20180601至20260911；A股使用SSE。pretrade_date可能位于输入范围之前，不据此伪造完整早期日历。

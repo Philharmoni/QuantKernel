@@ -1,0 +1,10 @@
+# Relative roots are resolved against the project, never the working directory.
+# Environment DATA_ROOT / MIDDLE_ROOT overrides the selected profile.
+profile: local
+profiles:
+  local:
+    DATA_ROOT: ./data
+    MIDDLE_ROOT: ./data_middle
+  server:
+    DATA_ROOT: /data/tushare_data
+    MIDDLE_ROOT: ./data_middle

@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "QuantKernel"
+version = "0.1.0"
+description = "Read-only TuShare data processing kernel for quantitative research"
+requires-python = ">=3.10"
+dependencies = ["PyYAML>=6", "pyarrow>=14", "duckdb>=1.5.5,<2"]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
