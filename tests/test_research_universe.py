@@ -32,7 +32,8 @@ def _config(tmp_path, change=None):
 
 def _copy_sources(golden_root, destination):
     destination.mkdir()
-    for table in ("trade_cal", "stock_basic", "stk_factor_pro", "suspend_d", "limit_list_d"):
+    for table in ("trade_cal", "stock_basic", "namechange", "stk_factor_pro",
+                  "suspend_d", "limit_list_d", "stk_limit"):
         shutil.copy2(golden_root / f"{table}.csv", destination / f"{table}.csv")
     return destination
 
@@ -85,16 +86,15 @@ def test_default_identity_sample_keeps_suspensions_and_later_delisted_securities
         assert set(manifests) == {"config", "universe"}
         rows = _rows(store)
         indexed = _index(rows)
-        assert len(rows) == len(indexed) == 34 * 5
+        assert len(rows) == len(indexed) == 34 * 5 * 4
         configs = _configs(store)
         assert len(configs) == 4
-        assert configs["all_a"]["status"] == "active"
-        assert {row["universe_id"] for row in rows} == {"all_a"}
         for name, config in configs.items():
+            assert config["status"] == "active"
+            assert config["deferred_reason"] is None
             assert isinstance(json.loads(config["config_json"]), dict)
-            if name != "all_a":
-                assert config["status"] == "deferred"
-                assert config["deferred_reason"]
+        assert {row["universe_id"] for row in rows} == {
+            "all_a", "all_a_ex_st", "all_a_ex_st_ipo120", "all_a_ex_st_ipo120_ex_bj"}
         for row in rows:
             assert row["config_id"] == configs[row["universe_id"]]["config_id"]
         assert indexed[("all_a", "600001.SH", date(2019, 1, 22))]["is_in_universe"] is True
@@ -112,6 +112,53 @@ def test_default_identity_sample_keeps_suspensions_and_later_delisted_securities
             expected = expected_trade[(row["ts_code"], row["trade_date"])]
             assert row["can_buy"] is expected["can_buy"]
             assert row["can_sell"] is expected["can_sell"]
+
+
+def test_ex_st_rules_exclude_only_st_intervals_from_namechange(tmp_path, golden_root):
+    with Store(Paths(golden_root, tmp_path / "middle")) as store:
+        _dependencies(store)
+        build_research_universe(store)
+        rows = _rows(store)
+        indexed = _index(rows)
+        for day, expected in [(date(2019, 1, 4), True), (date(2019, 1, 7), False),
+                              (date(2019, 1, 15), False), (date(2019, 1, 16), True)]:
+            row = indexed[("all_a_ex_st", "000002.SZ", day)]
+            assert row["is_in_universe"] is expected, (day, row)
+        excluded = indexed[("all_a_ex_st", "000002.SZ", date(2019, 1, 15))]
+        assert excluded["exclusion_reason"] == "EXCLUDED_ST"
+        assert excluded["is_st"] is True
+        ordinary = indexed[("all_a_ex_st", "000001.SZ", date(2019, 1, 15))]
+        assert ordinary["is_in_universe"] is True
+        assert ordinary["exclusion_reason"] is None
+        # ST exclusion takes precedence over the IPO threshold in the combined rule.
+        combined = indexed[("all_a_ex_st_ipo120", "000002.SZ", date(2019, 1, 15))]
+        assert combined["is_in_universe"] is False
+        assert combined["exclusion_reason"] == "EXCLUDED_ST"
+        not_st_recent = indexed[("all_a_ex_st_ipo120", "000002.SZ", date(2019, 1, 16))]
+        assert not_st_recent["is_in_universe"] is False
+        assert not_st_recent["exclusion_reason"] == "IPO_TOO_RECENT"
+
+
+def test_unknown_st_status_keeps_membership_unknown_in_ex_st_samples(tmp_path, golden_root):
+    raw = _copy_sources(golden_root, tmp_path / "raw")
+    with (raw / "namechange.csv").open(encoding="utf-8", newline="") as stream:
+        import csv as _csv
+        reader = _csv.DictReader(stream)
+        fields = reader.fieldnames
+        history = [row for row in reader if row["ts_code"] != "000001.SZ"]
+    with (raw / "namechange.csv").open("w", encoding="utf-8", newline="") as stream:
+        writer = _csv.DictWriter(stream, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(history)
+    with Store(Paths(raw, tmp_path / "middle")) as store:
+        _dependencies(store)
+        build_research_universe(store)
+        rows = _rows(store)
+        indexed = _index(rows)
+        unknown = indexed[("all_a_ex_st", "000001.SZ", date(2019, 1, 10))]
+        assert unknown["is_in_universe"] is None
+        assert unknown["exclusion_reason"] == "ST_STATUS_UNKNOWN"
+        assert indexed[("all_a", "000001.SZ", date(2019, 1, 10))]["is_in_universe"] is True
 
 
 def test_non_st_rules_support_beijing_exclusion_and_exact_listing_age(tmp_path, golden_root):
@@ -161,8 +208,9 @@ def test_non_a_share_identity_is_not_in_all_a_even_when_listed(tmp_path, golden_
     _change_basic(raw, add_non_a_share)
     rows, _ = _build(raw, tmp_path / "middle")
     other = [row for row in rows if row["ts_code"] == "200099.SZ"]
-    assert len(other) == 34
+    assert len(other) == 34 * 4
     assert all(row["is_in_universe"] is False for row in other)
+    assert all(row["exclusion_reason"] == "NOT_A_SHARE" for row in other)
 
 
 def test_config_ids_are_stable_and_change_with_the_rule(tmp_path, golden_root):
@@ -174,7 +222,8 @@ def test_config_ids_are_stable_and_change_with_the_rule(tmp_path, golden_root):
     assert original == repeat
     assert original["all_a"]["config_id"] != revised["all_a"]["config_id"]
     assert original["all_a"]["config_json"] != revised["all_a"]["config_json"]
-    assert all(row["config_id"] == revised["all_a"]["config_id"] for row in changed_rows)
+    assert all(row["config_id"] == revised["all_a"]["config_id"]
+               for row in changed_rows if row["universe_id"] == "all_a")
 
 
 def test_future_delisting_state_does_not_change_earlier_research_rows(tmp_path, golden_root):
@@ -213,9 +262,9 @@ def test_missing_upstream_security_date_is_not_silently_dropped(tmp_path, golden
             build_research_universe(store)
 
 
-def test_changing_capability_flag_cannot_enable_unimplemented_st_history(tmp_path, golden_root):
-    config = _config(tmp_path, lambda rules: rules["capabilities"]["historical_st"].__setitem__("status", "available"))
+def test_non_active_st_capability_cannot_enable_st_filtering(tmp_path, golden_root):
+    config = _config(tmp_path, lambda rules: rules["capabilities"]["historical_st"].__setitem__("status", "deferred"))
     with Store(Paths(golden_root, tmp_path / "middle"), config_root=config) as store:
         _dependencies(store)
-        with pytest.raises(ValueError, match="ST|st|historical"):
+        with pytest.raises(ValueError, match="historical_st|ST"):
             build_research_universe(store)

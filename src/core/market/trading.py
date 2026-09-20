@@ -8,6 +8,15 @@ def require_date_coverage(store, table: str, start=None, end=None):
     calendar = store.output_relation("l1", "daily_calendar")
     wanted = store.db.execute(f"SELECT min(trade_date),max(trade_date) FROM {calendar} "
                               f"WHERE {date_window(store,start,end)}").fetchone()
+    if table == "daily_adjusted_price":
+        # The quote source legitimately starts later than the extended calendar;
+        # gate on the source's own observed coverage instead of the calendar bounds.
+        raw = store.raw("stk_factor_pro")
+        source = store.db.execute(f"SELECT min(d),max(d) FROM "
+                                  f"(SELECT {date_sql(qi('trade_date'))} AS d FROM {raw})").fetchone()
+        if source[0] is not None:
+            wanted = (max(wanted[0], source[0]) if wanted[0] is not None else source[0],
+                      min(wanted[1], source[1]) if wanted[1] is not None else source[1])
     relation = store.output_relation("l1", table)
     actual = store.db.execute(f"SELECT min(trade_date),max(trade_date) FROM {relation}").fetchone()
     if wanted[0] is not None and (actual[0] is None or actual[0]>wanted[0] or actual[1]<wanted[1]):
@@ -22,9 +31,36 @@ def require_date_coverage(store, table: str, start=None, end=None):
             raise ValueError(f"{table}: incomplete upstream coverage: {missing}")
 
 
+def _normalize_limit_prices(store):
+    """Gate the raw per-stock daily limit prices; invalid rows stay excluded facts."""
+    raw = store.raw("stk_limit")
+    if store.rules["trade_status"].get("limit_price_policy") != "exclude_invalid_rows_with_diagnostics":
+        raise ValueError("Unsupported trade_status.limit_price_policy")
+    store.db.execute(f"""CREATE OR REPLACE TEMP VIEW normalized_limit_prices AS
+        SELECT ts_code, {date_sql(qi('trade_date'))} AS trade_date,
+               try_cast(up_limit AS DOUBLE) AS up_limit,
+               try_cast(down_limit AS DOUBLE) AS down_limit,
+               _source_file, _source_row FROM {raw}""")
+    samples = store.rows("SELECT ts_code, trade_date, up_limit, down_limit, _source_file, _source_row "
+                         "FROM normalized_limit_prices WHERE trade_date IS NULL OR ts_code IS NULL "
+                         "OR trim(cast(ts_code AS VARCHAR))='' LIMIT 10")
+    if samples:
+        raise ValueError(f"stk_limit: invalid date/code: {samples}")
+    samples = store.rows("""SELECT trade_date, ts_code, count(*) AS duplicate_count FROM normalized_limit_prices
+        GROUP BY trade_date, ts_code HAVING count(*)>1 ORDER BY trade_date, ts_code LIMIT 10""")
+    if samples:
+        raise ValueError(f"stk_limit: duplicate (trade_date,ts_code) key: {samples}")
+    store.db.execute("""CREATE OR REPLACE TEMP VIEW valid_limit_prices AS
+        SELECT * FROM normalized_limit_prices
+        WHERE up_limit IS NOT NULL AND down_limit IS NOT NULL
+          AND isfinite(up_limit) AND isfinite(down_limit)
+          AND up_limit>down_limit AND down_limit>0""")
+
+
 def build_trade_status(store, start=None, end=None) -> dict:
     require_date_coverage(store, "daily_stock_state", start, end)
     require_date_coverage(store, "daily_adjusted_price", start, end)
+    _normalize_limit_prices(store)
     states = store.output_relation("l1", "daily_stock_state")
     prices = store.output_relation("l1", "daily_adjusted_price")
     suspend, limits = store.raw("suspend_d"), store.raw("limit_list_d")
@@ -55,6 +91,16 @@ def build_trade_status(store, start=None, end=None) -> dict:
                              f"OR trim(ts_code)='' OR {predicate} LIMIT 10")
         if samples:
             raise ValueError(f"{name}: invalid date/code/event type: {samples}")
+    # The limit-price source must provide a partition for every trading day from
+    # its own first covered date; a missing day would silently widen unknowns.
+    calendar = store.output_relation("l1", "daily_calendar")
+    gaps = store.rows(f"""SELECT c.trade_date FROM {calendar} c
+        ANTI JOIN (SELECT DISTINCT trade_date FROM normalized_limit_prices) d USING(trade_date)
+        WHERE c.trade_date>=(SELECT min(trade_date) FROM normalized_limit_prices)
+          AND c.trade_date<=(SELECT max(trade_date) FROM normalized_limit_prices)
+        ORDER BY c.trade_date LIMIT 10""")
+    if gaps:
+        raise ValueError(f"stk_limit: trading days without any limit-price partition: {gaps}")
     suspend_known = (f"{str(config['suspension_events_complete']).upper()} AND trade_date BETWEEN "
                      f"DATE {qs(_date(config['coverage_start']))} AND DATE {qs(_date(config['coverage_end']))}"
                      f" AND split_part(ts_code,'.',2) IN ({','.join(qs(s) for s in suffixes)})")
@@ -81,6 +127,10 @@ def build_trade_status(store, start=None, end=None) -> dict:
                    list(DISTINCT limit_type ORDER BY limit_type) AS observed_limit_events,
                    list(DISTINCT _source_file ORDER BY _source_file) AS source_limit_files
             FROM normalized_limits GROUP BY trade_date,ts_code
+        ), lp AS (
+            SELECT trade_date,ts_code,up_limit,down_limit,
+                   _source_file AS source_limit_price_file,_source_row AS source_limit_price_row
+            FROM valid_limit_prices
         ), joined AS (
             SELECT st.trade_date,st.ts_code,st.is_listed,st.is_delisted,st.is_not_yet_listed,
                    p.ts_code IS NOT NULL AS quotation_exists,
@@ -94,20 +144,30 @@ def build_trade_status(store, start=None, end=None) -> dict:
                    coalesce(l.observed_up,false) AS observed_up,
                    coalesce(l.observed_down,false) AS observed_down,
                    coalesce(l.observed_opened,false) AS observed_opened,
+                   lp.up_limit, lp.down_limit,
+                   lp.ts_code IS NOT NULL AS limit_price_exists,
+                   lp.source_limit_price_file, lp.source_limit_price_row,
                    coalesce(s.source_suspend_files,[]::VARCHAR[]) AS source_suspend_files,
                    coalesce(s.observed_suspend_types,[]::VARCHAR[]) AS observed_suspend_types,
                    coalesce(l.observed_limit_events,[]::VARCHAR[]) AS observed_limit_events,
                    coalesce(l.source_limit_files,[]::VARCHAR[]) AS source_limit_files
             FROM {states} st LEFT JOIN {prices} p USING(trade_date,ts_code)
             LEFT JOIN susp s USING(trade_date,ts_code) LEFT JOIN lim l USING(trade_date,ts_code)
+            LEFT JOIN lp USING(trade_date,ts_code)
             WHERE {date_window(store,start,end,'st.trade_date')}
         )
         SELECT *,
                CASE WHEN observed_suspend THEN true WHEN {suspend_known} THEN false ELSE NULL END AS is_suspended,
                CASE WHEN observed_full_day THEN true WHEN observed_suspend OR {suspend_known} THEN false ELSE NULL END AS is_full_day_suspended,
                CASE WHEN observed_intraday THEN true WHEN observed_suspend OR {suspend_known} THEN false ELSE NULL END AS is_intraday_suspended,
-               CASE WHEN observed_up THEN true WHEN observed_down OR observed_opened OR {limits_known} THEN false ELSE NULL END AS is_limit_up,
-               CASE WHEN observed_down THEN true WHEN observed_up OR {limits_known} THEN false ELSE NULL END AS is_limit_down
+               CASE WHEN quotation_exists AND limit_price_exists THEN raw_close>=up_limit ELSE NULL END AS price_limit_up,
+               CASE WHEN quotation_exists AND limit_price_exists THEN raw_close<=down_limit ELSE NULL END AS price_limit_down,
+               CASE WHEN observed_up THEN true WHEN price_limit_up THEN true
+                    WHEN price_limit_up IS NOT NULL THEN false
+                    WHEN observed_down OR observed_opened OR {limits_known} THEN false ELSE NULL END AS is_limit_up,
+               CASE WHEN observed_down THEN true WHEN price_limit_down THEN true
+                    WHEN price_limit_down IS NOT NULL THEN false
+                    WHEN observed_up OR observed_opened OR {limits_known} THEN false ELSE NULL END AS is_limit_down
         FROM joined
     """)
     def reason(direction):
@@ -127,9 +187,20 @@ def build_trade_status(store, start=None, end=None) -> dict:
         FROM reasons"""
     result = store.publish("l1", "daily_trade_status", query, ["trade_date", "ts_code"])
     diagnostics = {}
-    for table in ("normalized_suspend", "normalized_limits"):
+    for table in ("normalized_suspend", "normalized_limits", "normalized_limit_prices"):
         missing = f"SELECT e.* FROM {table} e ANTI JOIN {states} st USING(trade_date,ts_code) WHERE {date_window(store,start,end,'e.trade_date')}"
         diagnostics[table] = {"unmatched_rows": store.db.execute(f"SELECT count(*) FROM ({missing})").fetchone()[0],
                               "samples": store.rows(missing + " LIMIT 10")}
+    invalid = (f"SELECT e.* FROM normalized_limit_prices e ANTI JOIN valid_limit_prices v "
+               f"USING(trade_date,ts_code,_source_file,_source_row)")
+    diagnostics["invalid_limit_prices"] = {
+        "count": store.db.execute(f"SELECT count(*) FROM ({invalid})").fetchone()[0],
+        "samples": store.rows(invalid + " ORDER BY trade_date, ts_code LIMIT 10")}
+    conflicts = f"""SELECT trade_date,ts_code,raw_close,up_limit,down_limit,observed_limit_events
+        FROM trade_facts WHERE (observed_up AND price_limit_up=false)
+        OR (observed_down AND price_limit_down=false)"""
+    diagnostics["limit_evidence_conflicts"] = {
+        "count": store.db.execute(f"SELECT count(*) FROM ({conflicts})").fetchone()[0],
+        "samples": store.rows(conflicts + " LIMIT 10")}
     store.write_json(("l1", "daily_trade_status", "source_diagnostics.json"), diagnostics)
     return result

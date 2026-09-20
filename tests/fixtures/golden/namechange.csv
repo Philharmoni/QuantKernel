@@ -1,0 +1,10 @@
+ts_code,name,start_date,end_date,ann_date,change_reason
+000001.SZ,Ordinary sample,20181217,,20181217,其他
+000002.SZ,Ordinary sample two,20181217,20190106,20181217,其他
+000002.SZ,ST sample,20190107,20190109,20190107,其他
+000002.SZ,*ST sample,20190110,20190113,20190110,其他
+000002.SZ,ST sample,20190114,20190115,20190114,其他
+000002.SZ,Ordinary sample two,20190116,,20190116,其他
+000003.SZ,Ordinary IPO,20190109,,20190109,其他
+600001.SH,Ordinary delisted,20181217,,20181217,其他
+830001.BJ,Ordinary Beijing,20181217,,20181217,其他

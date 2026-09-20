@@ -27,15 +27,18 @@ def build_research_universe(store, start=None, end=None):
             raise ValueError(f'{name}: exclusion flags must be boolean')
         if not isinstance(minimum, int) or isinstance(minimum, bool) or minimum < 0:
             raise ValueError(f'{name}: min_listing_trade_days must be a nonnegative integer')
-        if rule['exclude_st'] and historical_st['status'] != 'deferred':
-            raise ValueError('Historical ST filtering is not implemented: interval source remains deferred')
+        if rule['exclude_st'] and historical_st['status'] != 'active':
+            raise ValueError('Historical ST filtering requires the active historical_st capability; '
+                             f'configured status: {historical_st["status"]}')
         payload = {'engine': 'stage1_v1', 'rule': rule,
                    'listing_age_policy': 'exact_or_confirmed_lower_bound_else_unknown',
+                   'st_policy': 'namechange_derived_else_unknown_membership' if rule['exclude_st'] else 'not_required',
                    'historical_st': historical_st if rule['exclude_st'] else 'not_required'}
         serialized = json_text(payload)
         configs.append({**rule, 'config_id': hashlib.sha256(serialized.encode('utf-8')).hexdigest(),
-                        'config_json': serialized, 'status': 'deferred' if rule['exclude_st'] else 'active',
-                        'deferred_reason': historical_st['reason'] if rule['exclude_st'] else None})
+                        'config_json': serialized,
+                        'status': 'active' if not rule['exclude_st'] or historical_st['status'] == 'active' else 'deferred',
+                        'deferred_reason': None if not rule['exclude_st'] or historical_st['status'] == 'active' else historical_st['reason']})
     require_date_coverage(store, 'daily_stock_state', start, end)
     require_date_coverage(store, 'daily_trade_status', start, end)
     states = store.output_relation('l1', 'daily_stock_state')
@@ -54,13 +57,15 @@ def build_research_universe(store, start=None, end=None):
     query = f'''WITH classified AS (
         SELECT s.trade_date,s.ts_code,r.universe_id,r.config_id,
             s.is_listed,s.is_delisted,s.is_a_share,s.exchange,
-            s.listing_trade_days,s.listing_trade_days_lower_bound,
+            s.listing_trade_days,s.listing_trade_days_lower_bound,s.is_st,
             t.can_buy,t.can_sell,t.cannot_buy_reason,t.cannot_sell_reason,
             s.source_file AS source_stock_file,
             CASE WHEN s.is_delisted THEN 'DELISTED' WHEN NOT s.is_listed THEN 'NOT_LISTED'
                  WHEN NOT s.is_a_share THEN 'NOT_A_SHARE'
                  WHEN s.is_listed IS NULL OR s.is_a_share IS NULL THEN 'IDENTITY_UNKNOWN'
                  WHEN r.exclude_bj AND ends_with(s.ts_code,'.BJ') THEN 'EXCLUDED_BJ'
+                 WHEN r.exclude_st AND s.is_st THEN 'EXCLUDED_ST'
+                 WHEN r.exclude_st AND s.is_st IS NULL THEN 'ST_STATUS_UNKNOWN'
                  WHEN r.min_listing_trade_days>0 AND s.listing_trade_days<r.min_listing_trade_days
                     THEN 'IPO_TOO_RECENT'
                  WHEN r.min_listing_trade_days>0 AND s.listing_trade_days IS NULL
@@ -72,7 +77,8 @@ def build_research_universe(store, start=None, end=None):
         CROSS JOIN {config_relation} r
         WHERE r.status='active' AND {date_window(store,start,end,'s.trade_date')}
     ) SELECT *,CASE WHEN exclusion_reason IS NULL THEN true
-                    WHEN exclusion_reason IN ('IDENTITY_UNKNOWN','LISTING_AGE_UNKNOWN') THEN NULL
+                    WHEN exclusion_reason IN ('IDENTITY_UNKNOWN','LISTING_AGE_UNKNOWN','ST_STATUS_UNKNOWN') THEN NULL
                     ELSE false END AS is_in_universe FROM classified'''
-    universe_manifest = store.publish('l2', 'daily_research_universe', query, ['trade_date', 'ts_code', 'universe_id'])
+    universe_manifest = store.publish('l2', 'daily_research_universe', query,
+                                       ['trade_date', 'ts_code', 'universe_id'])
     return {'config': config_manifest, 'universe': universe_manifest}

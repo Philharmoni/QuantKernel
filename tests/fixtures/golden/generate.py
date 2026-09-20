@@ -35,8 +35,8 @@ def build():
     write_csv("trade_cal.csv", ("cal_date", "exchange", "is_open", "pretrade_date"), calendar)
 
     stocks = []
-    for code, name in zip(CODES, ("Synthetic ordinary", "Synthetic ST history",
-                                 "Synthetic IPO", "Synthetic delisted", "Synthetic Beijing")):
+    for code, name in zip(CODES, ("Ordinary sample", "Ordinary ST-history sample",
+                                 "Ordinary IPO", "Ordinary delisted", "Ordinary Beijing")):
         stocks.append(dict(ts_code=code, symbol=code.split(".")[0], name=name,
                            market="北交所" if code.endswith("BJ") else "主板",
                            exchange={"SZ": "SZSE", "SH": "SSE", "BJ": "BSE"}[code[-2:]],
@@ -46,25 +46,23 @@ def build():
     write_csv("stock_basic.csv", ("ts_code", "symbol", "name", "market", "exchange",
                                  "curr_type", "list_status", "list_date", "delist_date"), stocks)
 
-    # Explicit history spans include non-trading dates and use [start, end).
-    histories = {
-        "000001.SZ": [("20181217", "20190209", 0, 0, 0)],
-        "000002.SZ": [("20181217", "20190107", 0, 0, 0),
-                       ("20190107", "20190110", 1, 0, 0),
-                       ("20190110", "20190114", 1, 1, 0),
-                       ("20190114", "20190116", 1, 0, 0),
-                       ("20190116", "20190209", 0, 0, 0)],
-        "000003.SZ": [("20181217", "20190209", 0, 0, 0)],
-        "600001.SH": [("20181217", "20190121", 0, 0, 0),
-                       ("20190121", "20190123", 0, 0, 1),
-                       ("20190123", "20190209", 0, 0, 0)],
-        "830001.BJ": [("20181217", "20190209", 0, 0, 0)],
+    # Historical name intervals mirror the real namechange layout: every span is
+    # inclusive on both ends and an empty end_date means "still current".
+    name_changes = {
+        "000001.SZ": [("20181217", "", "Ordinary sample")],
+        "000002.SZ": [("20181217", "20190106", "Ordinary sample two"),
+                      ("20190107", "20190109", "ST sample"),
+                      ("20190110", "20190113", "*ST sample"),
+                      ("20190114", "20190115", "ST sample"),
+                      ("20190116", "", "Ordinary sample two")],
+        "000003.SZ": [("20190109", "", "Ordinary IPO")],
+        "600001.SH": [("20181217", "", "Ordinary delisted")],
+        "830001.BJ": [("20181217", "", "Ordinary Beijing")],
     }
-    states = [dict(ts_code=code, start_date=start, end_date=end, is_st=st,
-                   is_star_st=star_st, is_delisting_period=delisting)
-              for code in CODES for start, end, st, star_st, delisting in histories[code]]
-    write_csv("stock_state_history.csv", ("ts_code", "start_date", "end_date", "is_st",
-                                         "is_star_st", "is_delisting_period"), states)
+    names = [dict(ts_code=code, name=name, start_date=start, end_date=end,
+                  ann_date=start, change_reason="其他")
+             for code, spans in name_changes.items() for start, end, name in spans]
+    write_csv("namechange.csv", ("ts_code", "name", "start_date", "end_date", "ann_date", "change_reason"), names)
 
     prices = []
     for trading_date in trading_dates:
@@ -94,6 +92,26 @@ def build():
               [dict(trade_date="20190104", ts_code="000001.SZ", close=110, limit="U"),
                dict(trade_date="20190107", ts_code="000001.SZ", close=99, limit="D")])
 
+    # Daily limit prices: present from 20190104 onward (one row per trading day for
+    # 000001.SZ), so absent days stay genuinely unknown. The Beijing placeholder
+    # row (99999.99 / 0.0) mimics real provider sentinel values and must be excluded.
+    limit_prices = []
+    for trading_date in trading_dates:
+        if trading_date < "20190104":
+            continue
+        if trading_date == "20190104":
+            up, down = 110, 90
+        elif trading_date == "20190107":
+            up, down = 109, 99
+        else:
+            up, down = 54.45, 44.55
+        limit_prices.append(dict(trade_date=trading_date, ts_code="000001.SZ",
+                                 up_limit=up, down_limit=down))
+    limit_prices.append(dict(trade_date="20190116", ts_code="000002.SZ", up_limit=110, down_limit=90))
+    limit_prices.append(dict(trade_date="20190116", ts_code="830001.BJ",
+                             up_limit=99999.99, down_limit=0.0))
+    write_csv("stk_limit.csv", ("trade_date", "ts_code", "up_limit", "down_limit"), limit_prices)
+
     # Dates and amounts are deliberately artificial to put all PIT edges in a short calendar.
     announcements = {
         "000001.SZ": [("20180331", "20181220", 10, 100, "0.10", "0"),
@@ -120,7 +138,7 @@ def build():
     write_csv("cashflow_vip.csv", base_fields + ("n_cashflow_act",), cashflows)
     write_csv("balancesheet_vip.csv", base_fields + ("total_assets",), balancesheets)
     write_csv("fina_indicator.csv", ("ts_code", "ann_date", "end_date", "update_flag", "eps"), indicators)
-    print(f"Rebuilt 10 artificial CSV files: {len(calendar)} calendar dates, {len(trading_dates)} trading dates, {len(CODES)} stocks")
+    print(f"Rebuilt 11 artificial CSV files: {len(calendar)} calendar dates, {len(trading_dates)} trading dates, {len(CODES)} stocks")
 
 
 if __name__ == "__main__":

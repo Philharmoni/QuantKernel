@@ -24,7 +24,8 @@ tables:
     - update_flag
     - total_assets
     stage1: true
-    notes: 33期20180630至20260630；保留版本冲突与ann_date/f_ann_date，不保证候选键唯一。total_assets等为时点余额，不做累计差分/TTM求和；20260630分区仅1行，保留缺失而不补造。
+    notes: 36期20170930至20260630；保留版本冲突与ann_date/f_ann_date，不保证候选键唯一。total_assets等为时点余额，不做累计差分/TTM求和。
+      20170930/20171231/20180331三期与20260331/20260630的补充行经非VIP逐股接口取得（账号无VIP接口权限），字段为VIP子集，只含report_type=1，update_flag两版均保留；20260331/20260630补充文件只含原分区已有股票之外的部分（原文件不动，原20260331约1100行、20260630仅1行）。同键版本对的total_assets预检一致，仅20260630有1组真实冲突按ambiguous处理。20170930原始公告早于日历起点20180101，标calendar_before_coverage保留但不可见。
       全量画像发现31组相同候选键对应不同完整记录；financial_available按完整记录哈希保留版本。同一生效日、报告期、字段存在冲突时标ambiguous并留空，不用update_flag任意择一。 财务旧代码与当前stock_basic不能全部匹配；原始代码和记录保留，不以内连接丢弃或编造历史代码映射。
   block_trade:
     path: block_trade/**/*.parquet
@@ -71,7 +72,8 @@ tables:
     - update_flag
     - n_cashflow_act
     stage1: true
-    notes: 33期20180630至20260630；候选键不保证真实唯一。按max(ann_date,f_ann_date)后交易日可见；仅配置累计字段及report_type=1进入季度/TTM，保留版本。首期缺2018Q1，末期20260630仅1行。
+    notes: 36期20170930至20260630；候选键不保证真实唯一。按max(ann_date,f_ann_date)后交易日可见；仅配置累计字段及report_type=1进入季度/TTM，保留版本。
+      20170930/20171231/20180331三期与20260331/20260630的补充行经非VIP逐股接口取得（账号无VIP接口权限），字段为VIP子集，只含report_type=1，update_flag两版均保留；20260331/20260630补充文件只含原分区已有股票之外的部分（原文件不动，原20260331约1100行、20260630仅1行，补后代码数约5700/6100）。同键版本对的n_cashflow_act预检一致。20170930原始公告早于日历起点20180101，标calendar_before_coverage保留但不可见。
       全量画像发现2组相同候选键对应不同完整记录；按完整记录哈希保留版本。同生效日同报告期同指标冲突时单季/TTM留NULL并标ambiguous；金额缺失不填0。 财务旧代码与当前stock_basic不能全部匹配；原始代码和记录保留，不以内连接丢弃或编造历史代码映射。
   ci_daily:
     path: ci_daily/**/*.parquet
@@ -446,7 +448,8 @@ tables:
     - revenue
     - n_income_attr_p
     stage1: true
-    notes: 33个报告期分区20180630至20260630；候选键不保证真实唯一，保留冲突及版本。ann_date与f_ann_date实际可不同；可用日为两者非空最大值后的下一个SSE交易日。available层保留全部report_type，累计单季/TTM只处理配置的1类型。20260630分区仅1行，不代表全市场完整。
+    notes: 36个报告期分区20170930至20260630；候选键不保证真实唯一，保留冲突及版本。ann_date与f_ann_date实际可不同；可用日为两者非空最大值后的下一个SSE交易日。available层保留全部report_type，累计单季/TTM只处理配置的1类型。
+      20170930/20171231/20180331三期与20260331/20260630的补充行经非VIP逐股接口取得（账号无VIP接口权限），字段为VIP子集（缺9个扩展列，union后为NULL），只含report_type=1，update_flag两版均保留；20260331/20260630补充文件只含原分区已有股票之外的部分（原文件不动，原20260331约1100行、20260630仅1行，补后代码数约5700/6100）。同键update_flag版本对的revenue等指标预检一致，仅20260630有1组真实冲突按ambiguous处理。20170930原始公告（2017-10）早于日历起点20180101，标calendar_before_coverage保留但不可见；北交所/新三板旧代码多披露年报少季报，20171231代码数(5079)多于20170930/20180331(约3900)。
       全量画像发现6组相同候选键对应不同完整记录；002961.SZ/20250630存在update_flag相同仍冲突的记录。按完整记录哈希保留版本，同生效日同报告期同指标冲突的单季/TTM留NULL并标ambiguous；revenue等金额缺失不填0。
       财务旧代码与当前stock_basic不能全部匹配；原始代码和记录保留，不以内连接丢弃或编造历史代码映射。
   index_classify:
@@ -585,6 +588,25 @@ tables:
     - ts_code
     stage1: false
     notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  namechange:
+    path: namechange/**/*.parquet
+    purpose: 股票曾用名与历史更名区间，按股票代码保存。
+    primary_key:
+    - ts_code
+    - start_date
+    date_fields:
+    - start_date
+    - end_date
+    - ann_date
+    code_field: ts_code
+    required_fields:
+    - ts_code
+    - name
+    - start_date
+    - end_date
+    - ann_date
+    stage1: true
+    notes: 实测5907个按代码文件共14205行；区间为双端包含[start_date,end_date]，end_date为空表示至今，相邻区间start=前区间end+1。曾用名包含ST/*ST/S*ST/SST/GST等风险警示样式，是派生历史ST状态的事实来源；(ts_code,start_date)实测无重复。存在7组重叠区间（4只股票的新旧名称交接或同名重复，ST语义一致，派生时按一致取值、冲突置空）；243处区间内空洞、73只股票首个区间晚于list_date、T600018.SH退市历史代码无记录，这些日期ST状态保持未知；另有7个代码不在当前stock_basic（旧退市/北交所代码），保留原始记录并在派生层诊断披露，不删除、不猜测映射。
   pledge_detail:
     path: pledge_detail/**/*.parquet
     purpose: 股权质押明细，单次最大 1000；400/min 本地限速。
@@ -739,6 +761,22 @@ tables:
     - ts_code
     stage1: false
     notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+  stk_limit:
+    path: stk_limit/**/*.parquet
+    purpose: 股票每日涨跌停价格，按交易日分区。
+    primary_key:
+    - trade_date
+    - ts_code
+    date_fields:
+    - trade_date
+    code_field: ts_code
+    required_fields:
+    - trade_date
+    - ts_code
+    - up_limit
+    - down_limit
+    stage1: true
+    notes: 实测2116个日分区20180102至20260918共9866957行，(trade_date,ts_code)实测无重复；SSE日历20180102至20260911范围内每个交易日均有分区。280行BJ占位值(up_limit=99999.99,down_limit=0.0)按无效限价处理：保留原始行、不参与方向判断并在诊断披露；155个代码不在当前stock_basic（含B股200xxx与退市旧码），同样保留并披露。约6.2万个有报价但缺限价行的证券日集中在2018-2022年（2023年后为0），该部分涨跌停状态保持未知。与limit_list_d事件交叉验证：U事件与close>=up_limit几乎完全一致（0矛盾），价格证据可覆盖官方不统计的ST股票。
   stk_holdertrade:
     path: stk_holdertrade/**/*.parquet
     purpose: 股东增减持，以公告日 ann_date 分区。

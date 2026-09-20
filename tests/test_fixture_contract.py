@@ -28,14 +28,42 @@ def test_delisting_and_ipo_are_historical_scenarios(raw_rows):
 
 
 def test_st_intervals_are_complete_nonoverlapping_and_historical(raw_rows):
-    history = raw_rows("stock_state_history")
-    for code in {row["ts_code"] for row in raw_rows("stock_basic")}:
-        for date in [row["cal_date"] for row in raw_rows("trade_cal") if row["is_open"] == "1"]:
-            visible = [row for row in history if row["ts_code"] == code
-                       and row["start_date"] <= date < row["end_date"]]
-            assert len(visible) == 1, (code, date)
-            if code == "000002.SZ":
-                assert (visible[0]["is_st"] in ("1", "true", "True")) == ("20190107" <= date < "20190116")
+    history = raw_rows("namechange")
+    stocks = {row["ts_code"] for row in raw_rows("stock_basic")}
+    for code in stocks:
+        intervals = sorted((row["start_date"], row["end_date"] or "99999999")
+                           for row in history if row["ts_code"] == code)
+        assert intervals, code
+        for (start, end), (next_start, _) in zip(intervals, intervals[1:]):
+            assert next_start > end, (code, intervals)
+        if code == "000002.SZ":
+            names = {row["name"] for row in history if row["ts_code"] == code}
+            assert any("ST" in name.upper() for name in names)
+            assert any("*ST" in name.upper() for name in names)
+
+
+def test_namechange_spans_cover_the_full_listing_period(raw_rows):
+    history = raw_rows("namechange")
+    for stock in raw_rows("stock_basic"):
+        spans = sorted((row["start_date"], row["end_date"] or "99999999")
+                       for row in history if row["ts_code"] == stock["ts_code"])
+        assert spans, stock["ts_code"]
+        # The first recorded name starts with the listing itself.
+        assert spans[0][0] == stock["list_date"], (stock["ts_code"], spans)
+
+
+def test_limit_prices_have_unique_keys_and_valid_placeholders(raw_rows):
+    rows = raw_rows("stk_limit")
+    keys = [(row["trade_date"], row["ts_code"]) for row in rows]
+    assert len(keys) == len(set(keys))
+    dates = [row["cal_date"] for row in raw_rows("trade_cal") if row["is_open"] == "1"]
+    assert set(row["trade_date"] for row in rows) <= set(dates)
+    ordinary = [row for row in rows if row["ts_code"] == "000001.SZ"]
+    assert set(row["trade_date"] for row in ordinary) == {
+        day for day in dates if day >= "20190104"}
+    placeholder = next(row for row in rows if row["ts_code"] == "830001.BJ")
+    assert float(placeholder["up_limit"]) == 99999.99
+    assert float(placeholder["down_limit"]) == 0.0
 
 
 def test_directional_limits_suspension_and_adjustment_are_present(raw_rows):

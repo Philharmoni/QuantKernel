@@ -37,7 +37,8 @@ def _fixture_config(tmp_path, *, complete_limits=True, **overrides):
 
 def _copy_sources(golden_root, destination):
     destination.mkdir()
-    for table in ("trade_cal", "stock_basic", "stk_factor_pro", "suspend_d", "limit_list_d"):
+    for table in ("trade_cal", "stock_basic", "namechange", "stk_factor_pro",
+                  "suspend_d", "limit_list_d", "stk_limit"):
         shutil.copy2(golden_root / f"{table}.csv", destination / f"{table}.csv")
     return destination
 
@@ -84,7 +85,10 @@ def test_golden_trade_directions_follow_manual_oracle(tmp_path, golden_root):
         actual = indexed[key]
         for field, value in case.items():
             if field not in {"ts_code", "trade_date"}:
-                assert actual[field] is value, (key, field)
+                if isinstance(value, (int, float)) and not isinstance(value, bool):
+                    assert actual[field] == value, (key, field)
+                else:
+                    assert actual[field] is value, (key, field)
 
     no_quote = indexed[("000001.SZ", date(2019, 1, 9))]
     assert no_quote["is_suspended"] is False
@@ -159,10 +163,93 @@ def test_opened_limit_event_does_not_mean_closed_limit_up(tmp_path, golden_root)
     indexed = _index(_build_rows(raw, tmp_path / "middle", config))
     opened = indexed[("000001.SZ", date(2019, 1, 11))]
     assert opened["is_limit_up"] is False
-    assert opened["is_limit_down"] is None
+    assert opened["is_limit_down"] is False
     assert opened["can_buy"] is True
-    assert opened["can_sell"] is None
+    assert opened["can_sell"] is True
     assert "Z" in opened["observed_limit_events"]
+
+
+def test_limit_prices_resolve_direction_without_any_limit_event(tmp_path, golden_root):
+    config = _fixture_config(tmp_path, complete_limits=False)
+    raw = _copy_sources(golden_root, tmp_path / "raw")
+    # 000002.SZ closes at 100 on 20190116 with no U event anywhere.
+    _change_table(raw, "stk_limit", lambda rows: next(
+        row for row in rows if row["ts_code"] == "000002.SZ").__setitem__("up_limit", "100"))
+    indexed = _index(_build_rows(raw, tmp_path / "middle", config))
+    priced = indexed[("000002.SZ", date(2019, 1, 16))]
+    assert priced["limit_price_exists"] is True
+    assert priced["up_limit"] == 100.0
+    assert priced["down_limit"] == 90.0
+    assert priced["is_limit_up"] is True
+    assert priced["is_limit_down"] is False
+    assert priced["can_buy"] is False
+    assert priced["can_sell"] is True
+
+
+def test_invalid_placeholder_limit_prices_are_excluded_from_direction_facts(tmp_path, golden_root):
+    config = _fixture_config(tmp_path, complete_limits=False)
+    indexed = _index(_build_rows(golden_root, tmp_path / "middle", config))
+    placeholder = indexed[("830001.BJ", date(2019, 1, 16))]
+    assert placeholder["limit_price_exists"] is False
+    assert placeholder["up_limit"] is None
+    assert placeholder["down_limit"] is None
+    assert placeholder["is_limit_up"] is None
+    assert placeholder["cannot_buy_reason"] == "LIMIT_STATUS_UNKNOWN"
+
+
+def test_missing_limit_price_days_stay_unknown_but_are_reported(tmp_path, golden_root):
+    config = _fixture_config(tmp_path, complete_limits=False)
+    indexed = _index(_build_rows(golden_root, tmp_path / "middle", config))
+    ordinary = indexed[("000001.SZ", date(2019, 1, 2))]
+    assert ordinary["limit_price_exists"] is False
+    assert ordinary["is_limit_up"] is None
+    assert ordinary["cannot_buy_reason"] == "LIMIT_STATUS_UNKNOWN"
+
+
+def test_limit_price_day_partition_gap_fails_before_publication(tmp_path, golden_root):
+    config = _fixture_config(tmp_path)
+    raw = _copy_sources(golden_root, tmp_path / "raw")
+    _change_table(raw, "stk_limit", lambda rows: rows.__setitem__(
+        slice(None), [row for row in rows if row["trade_date"] != "20190116"]))
+    with Store(Paths(raw, tmp_path / "middle"), config_root=config) as store:
+        _build_dependencies(store)
+        with pytest.raises(ValueError, match="stk_limit"):
+            build_trade_status(store)
+        assert not store.paths.output("l1", "daily_trade_status", "part-00000.parquet").exists()
+
+
+def test_missing_limit_values_are_excluded_like_placeholders(tmp_path, golden_root):
+    config = _fixture_config(tmp_path, complete_limits=False)
+    raw = _copy_sources(golden_root, tmp_path / "raw")
+    _change_table(raw, "stk_limit", lambda rows: next(
+        row for row in rows if row["ts_code"] == "000002.SZ").__setitem__("up_limit", ""))
+    indexed = _index(_build_rows(raw, tmp_path / "middle", config))
+    empty = indexed[("000002.SZ", date(2019, 1, 16))]
+    assert empty["limit_price_exists"] is False
+    assert empty["up_limit"] is None
+    assert empty["is_limit_up"] is None
+
+
+def test_invalid_limit_price_date_fails_before_publication(tmp_path, golden_root):
+    config = _fixture_config(tmp_path)
+    raw = _copy_sources(golden_root, tmp_path / "raw")
+    _change_table(raw, "stk_limit", lambda rows: rows[0].__setitem__("trade_date", "20190230"))
+    with Store(Paths(raw, tmp_path / "middle"), config_root=config) as store:
+        _build_dependencies(store)
+        with pytest.raises(ValueError, match="stk_limit"):
+            build_trade_status(store)
+        assert not store.paths.output("l1", "daily_trade_status", "part-00000.parquet").exists()
+
+
+def test_duplicate_limit_price_key_fails_before_publication(tmp_path, golden_root):
+    config = _fixture_config(tmp_path)
+    raw = _copy_sources(golden_root, tmp_path / "raw")
+    _change_table(raw, "stk_limit", lambda rows: rows.append(dict(rows[0])))
+    with Store(Paths(raw, tmp_path / "middle"), config_root=config) as store:
+        _build_dependencies(store)
+        with pytest.raises(ValueError, match="duplicate"):
+            build_trade_status(store)
+        assert not store.paths.output("l1", "daily_trade_status", "part-00000.parquet").exists()
 
 
 def test_zero_volume_blocks_both_directions_without_inventing_suspension(tmp_path, golden_root):

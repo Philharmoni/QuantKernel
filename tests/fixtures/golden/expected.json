@@ -1,5 +1,5 @@
 {
-  "fixture_version": 1,
+  "fixture_version": 2,
   "origin": "Entirely artificial; manually specified expected values, never copied from data/",
   "calendar_start": "20181217",
   "calendar_end": "20190208",
@@ -7,7 +7,8 @@
   "trading_days": 34,
   "stock_count": 5,
   "coverage": {
-    "stock_state_history": "Complete for every fixture stock on every calendar date; intervals are [start_date, end_date)",
+    "namechange": "Historical name intervals for every fixture stock; spans are inclusive on both ends, an empty end_date means still current",
+    "stk_limit": "Per-stock daily limit prices from 20190104 onward for 000001.SZ (one row per trading day) plus selected extra rows; absent rows keep limit status unknown, the 830001.BJ placeholder row (99999.99/0.0) is invalid",
     "limit_list_d": "Complete event coverage for this artificial fixture only; absent event means no limit event",
     "suspend_d": "Complete full-day suspension event coverage for this artificial fixture only",
     "production_sources": "These fixture coverage guarantees must never be inferred for real data/"
@@ -31,23 +32,24 @@
     {"ts_code": "000001.SZ", "trade_date": "20190111", "close": 49.5, "adj_factor": 2, "adjusted_close": 99, "ret_1d": 0}
   ],
   "stock_state_cases": [
-    {"ts_code": "000002.SZ", "trade_date": "20190104", "is_st": false, "is_star_st": false},
-    {"ts_code": "000002.SZ", "trade_date": "20190107", "is_st": true, "is_star_st": false},
-    {"ts_code": "000002.SZ", "trade_date": "20190110", "is_st": true, "is_star_st": true},
-    {"ts_code": "000002.SZ", "trade_date": "20190114", "is_st": true, "is_star_st": false},
-    {"ts_code": "000002.SZ", "trade_date": "20190115", "is_st": true, "is_star_st": false},
-    {"ts_code": "000002.SZ", "trade_date": "20190116", "is_st": false, "is_star_st": false},
-    {"ts_code": "000003.SZ", "trade_date": "20190108", "is_listed": false, "listing_trade_days": 0},
-    {"ts_code": "000003.SZ", "trade_date": "20190109", "is_listed": true, "listing_trade_days": 1},
-    {"ts_code": "000003.SZ", "trade_date": "20190110", "is_listed": true, "listing_trade_days": 2},
-    {"ts_code": "600001.SH", "trade_date": "20190118", "is_listed": true, "is_delisted": false, "is_delisting_period": false},
-    {"ts_code": "600001.SH", "trade_date": "20190122", "is_listed": true, "is_delisted": false, "is_delisting_period": true, "listing_trade_days": 26},
-    {"ts_code": "600001.SH", "trade_date": "20190123", "is_listed": false, "is_delisted": true, "is_delisting_period": false}
+    {"ts_code": "000002.SZ", "trade_date": "20190104", "is_st": false, "is_star_st": false, "historical_name": "Ordinary sample two"},
+    {"ts_code": "000002.SZ", "trade_date": "20190107", "is_st": true, "is_star_st": false, "historical_name": "ST sample"},
+    {"ts_code": "000002.SZ", "trade_date": "20190110", "is_st": true, "is_star_st": true, "historical_name": "*ST sample"},
+    {"ts_code": "000002.SZ", "trade_date": "20190114", "is_st": true, "is_star_st": false, "historical_name": "ST sample"},
+    {"ts_code": "000002.SZ", "trade_date": "20190115", "is_st": true, "is_star_st": false, "historical_name": "ST sample"},
+    {"ts_code": "000002.SZ", "trade_date": "20190116", "is_st": false, "is_star_st": false, "historical_name": "Ordinary sample two"},
+    {"ts_code": "000003.SZ", "trade_date": "20190108", "is_listed": false, "listing_trade_days": 0, "is_st": null},
+    {"ts_code": "000003.SZ", "trade_date": "20190109", "is_listed": true, "listing_trade_days": 1, "listing_natural_days": 0},
+    {"ts_code": "000003.SZ", "trade_date": "20190110", "is_listed": true, "listing_trade_days": 2, "listing_natural_days": 1},
+    {"ts_code": "600001.SH", "trade_date": "20190118", "is_listed": true, "is_delisted": false, "is_delisting_period": null, "listing_natural_days": 32},
+    {"ts_code": "600001.SH", "trade_date": "20190122", "is_listed": true, "is_delisted": false, "is_delisting_period": null, "listing_trade_days": 26, "listing_natural_days": 36},
+    {"ts_code": "600001.SH", "trade_date": "20190123", "is_listed": false, "is_delisted": true, "is_delisting_period": null, "listing_natural_days": 36},
+    {"ts_code": "000001.SZ", "trade_date": "20190111", "listing_natural_days": 25, "estimated_listing_trade_days": 17}
   ],
   "trade_status_cases": [
     {"ts_code": "000001.SZ", "trade_date": "20190103", "is_suspended": true, "quotation_exists": false, "can_buy": false, "can_sell": false},
-    {"ts_code": "000001.SZ", "trade_date": "20190104", "is_limit_up": true, "is_limit_down": false, "can_buy": false, "can_sell": true},
-    {"ts_code": "000001.SZ", "trade_date": "20190107", "is_limit_up": false, "is_limit_down": true, "can_buy": true, "can_sell": false},
+    {"ts_code": "000001.SZ", "trade_date": "20190104", "is_limit_up": true, "is_limit_down": false, "up_limit": 110, "down_limit": 90, "can_buy": false, "can_sell": true},
+    {"ts_code": "000001.SZ", "trade_date": "20190107", "is_limit_up": false, "is_limit_down": true, "up_limit": 109, "down_limit": 99, "can_buy": true, "can_sell": false},
     {"ts_code": "000001.SZ", "trade_date": "20190109", "is_suspended": false, "quotation_exists": false, "can_buy": false, "can_sell": false},
     {"ts_code": "000003.SZ", "trade_date": "20190108", "is_listed": false, "can_buy": false, "can_sell": false},
     {"ts_code": "600001.SH", "trade_date": "20190123", "is_delisted": true, "can_buy": false, "can_sell": false}
@@ -78,6 +80,7 @@
     {"universe_id": "all_a", "ts_code": "000001.SZ", "trade_date": "20190103", "is_in_universe": true, "reason": "Identity sample does not impose tradeability"},
     {"universe_id": "all_a_ex_st", "ts_code": "000002.SZ", "trade_date": "20190107", "is_in_universe": false},
     {"universe_id": "all_a_ex_st", "ts_code": "000002.SZ", "trade_date": "20190116", "is_in_universe": true},
+    {"universe_id": "all_a_ex_st", "ts_code": "000001.SZ", "trade_date": "20190116", "is_in_universe": true, "reason": "Non-ST ordinary stock stays in the ex_st sample"},
     {"universe_id": "all_a_ex_st_ipo120", "ts_code": "000003.SZ", "trade_date": "20190109", "is_in_universe": false},
     {"universe_id": "all_a_ex_st_ipo120", "ts_code": "000001.SZ", "trade_date": "20190201", "is_in_universe": false, "reason": "Every artificial stock has fewer than 120 listed trading days"},
     {"universe_id": "fixture_ex_bj", "ts_code": "830001.BJ", "trade_date": "20190116", "is_in_universe": false, "config": {"exclude_bj": true, "min_listing_trade_days": 0}},
@@ -87,10 +90,10 @@
   "future_state_invariance": {
     "ts_code": "000002.SZ",
     "unchanged_through": "20190131",
-    "replace_interval": {"start_date": "20190116", "end_date": "20190209", "is_st": false, "is_star_st": false, "is_delisting_period": false},
-    "replacement_intervals": [
-      {"start_date": "20190116", "end_date": "20190201", "is_st": false, "is_star_st": false, "is_delisting_period": false},
-      {"start_date": "20190201", "end_date": "20190209", "is_st": true, "is_star_st": false, "is_delisting_period": false}
+    "replace_namechange_span": {"start_date": "20190116", "end_date": "", "name": "Ordinary sample two"},
+    "replacement_spans": [
+      {"start_date": "20190116", "end_date": "20190131", "name": "Ordinary sample two"},
+      {"start_date": "20190201", "end_date": "", "name": "ST sample future"}
     ],
     "expected": "State and research-universe outputs before 20190201 are byte-for-byte unchanged after a canonical sort"
   }

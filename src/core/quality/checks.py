@@ -13,8 +13,8 @@ from core.market.prices import date_window
 TABLES = {
     'daily_calendar': ('l1', ['trade_date'], {'trade_date': 'DATE', 'prev_trade_date': 'DATE', 'next_trade_date': 'DATE', 'trade_index': 'BIGINT'}),
     'daily_adjusted_price': ('l1', ['trade_date', 'ts_code'], {'trade_date': 'DATE', 'ts_code': 'VARCHAR', 'close': 'DOUBLE', 'adj_factor': 'DOUBLE', 'adjusted_close': 'DOUBLE', 'ret_1d': 'DOUBLE', 'prev_quote_date': 'DATE'}),
-    'daily_stock_state': ('l1', ['trade_date', 'ts_code'], {'trade_date': 'DATE', 'ts_code': 'VARCHAR', 'is_listed': 'BOOLEAN', 'is_delisted': 'BOOLEAN', 'is_a_share': 'BOOLEAN', 'is_st': 'BOOLEAN', 'listing_trade_days': 'BIGINT', 'listing_trade_days_lower_bound': 'BIGINT'}),
-    'daily_trade_status': ('l1', ['trade_date', 'ts_code'], {'trade_date': 'DATE', 'ts_code': 'VARCHAR', 'can_buy': 'BOOLEAN', 'can_sell': 'BOOLEAN', 'is_suspended': 'BOOLEAN', 'is_limit_up': 'BOOLEAN', 'is_limit_down': 'BOOLEAN'}),
+    'daily_stock_state': ('l1', ['trade_date', 'ts_code'], {'trade_date': 'DATE', 'ts_code': 'VARCHAR', 'is_listed': 'BOOLEAN', 'is_delisted': 'BOOLEAN', 'is_a_share': 'BOOLEAN', 'is_st': 'BOOLEAN', 'is_star_st': 'BOOLEAN', 'listing_trade_days': 'BIGINT', 'listing_trade_days_lower_bound': 'BIGINT', 'listing_natural_days': 'BIGINT', 'estimated_listing_trade_days': 'BIGINT', 'historical_name': 'VARCHAR', 'historical_state_status': 'VARCHAR'}),
+    'daily_trade_status': ('l1', ['trade_date', 'ts_code'], {'trade_date': 'DATE', 'ts_code': 'VARCHAR', 'can_buy': 'BOOLEAN', 'can_sell': 'BOOLEAN', 'is_suspended': 'BOOLEAN', 'is_limit_up': 'BOOLEAN', 'is_limit_down': 'BOOLEAN', 'up_limit': 'DOUBLE', 'down_limit': 'DOUBLE', 'limit_price_exists': 'BOOLEAN'}),
     'financial_available': ('l1', ['source_table', 'record_id'], {'source_table': 'VARCHAR', 'record_id': 'VARCHAR', 'ts_code': 'VARCHAR', 'end_date': 'DATE', 'ann_date': 'DATE', 'f_ann_date': 'DATE', 'effective_ann_date': 'DATE', 'available_date': 'DATE', 'availability_status': 'VARCHAR', 'version': 'BIGINT'}),
     'quarterly_financial': ('l1', ['source_table', 'ts_code', 'metric', 'end_date', 'available_date'], {'source_table': 'VARCHAR', 'ts_code': 'VARCHAR', 'end_date': 'DATE', 'available_date': 'DATE', 'value': 'DOUBLE', 'status': 'VARCHAR', 'version_id': 'VARCHAR', 'source_record_ids': 'VARCHAR[]'}),
     'ttm_financial': ('l1', ['source_table', 'ts_code', 'metric', 'end_date', 'available_date'], {'source_table': 'VARCHAR', 'ts_code': 'VARCHAR', 'end_date': 'DATE', 'available_date': 'DATE', 'value': 'DOUBLE', 'status': 'VARCHAR', 'version_id': 'VARCHAR', 'source_quarter_ids': 'VARCHAR[]'}),
@@ -201,10 +201,49 @@ class Quality:
             self.check('daily_stock_state', 'historical_listing', ['is_listed', 'is_delisted'], f'''SELECT a.trade_date,a.ts_code,a.is_listed,a.is_delisted,b.list_date,b.delist_date
                 FROM {st} a JOIN {basic} b USING(ts_code) WHERE a.is_listed IS DISTINCT FROM ({listed})
                 OR a.is_delisted IS DISTINCT FROM ({date_sql('b.delist_date')} IS NOT NULL AND a.trade_date>={date_sql('b.delist_date')})''')
-            self.check('daily_stock_state', 'invented_history', ['is_st', 'is_star_st', 'is_delisting_period', 'board'], f'''SELECT trade_date,ts_code,is_st,is_star_st,is_delisting_period,board
-                FROM {st} WHERE is_st IS NOT NULL OR is_star_st IS NOT NULL OR is_delisting_period IS NOT NULL OR board IS NOT NULL''')
+            namechange = s.raw('namechange')
+            self.check('daily_stock_state', 'invented_history', ['is_st', 'is_star_st', 'is_delisting_period', 'board', 'historical_state_status'], f'''
+                WITH nc AS (
+                    SELECT ts_code,
+                           upper(nullif(trim(cast({qi('name')} AS VARCHAR)),'')) AS upper_name,
+                           {date_sql(qi('start_date'))} AS start_date,
+                           {date_sql(qi('end_date'))} AS end_date
+                    FROM {namechange}
+                ), covering AS (
+                    SELECT c.trade_date, n.ts_code,
+                           bool_or(contains(n.upper_name,'ST')) AS any_st,
+                           bool_and(contains(n.upper_name,'ST')) AS all_st,
+                           bool_or(contains(n.upper_name,'*ST')) AS any_star_st,
+                           bool_and(contains(n.upper_name,'*ST')) AS all_star_st,
+                           count(*) AS covering_intervals
+                    FROM {c} c JOIN nc n
+                      ON c.trade_date>=n.start_date
+                     AND c.trade_date<=coalesce(n.end_date, DATE '9999-12-31')
+                    GROUP BY c.trade_date, n.ts_code
+                ), expected AS (
+                    SELECT a.trade_date, a.ts_code,
+                           CASE WHEN NOT a.is_listed THEN NULL
+                                WHEN a.is_listed IS NULL THEN NULL
+                                WHEN coalesce(v.covering_intervals,0)=0 THEN NULL
+                                WHEN v.any_st<>v.all_st THEN NULL ELSE v.any_st END AS exp_is_st,
+                           CASE WHEN NOT a.is_listed THEN NULL
+                                WHEN a.is_listed IS NULL THEN NULL
+                                WHEN coalesce(v.covering_intervals,0)=0 THEN NULL
+                                WHEN v.any_star_st<>v.all_star_st THEN NULL ELSE v.any_star_st END AS exp_is_star_st
+                    FROM {st} a LEFT JOIN covering v USING(trade_date,ts_code)
+                )
+                SELECT a.trade_date,a.ts_code,a.is_st,a.is_star_st,a.is_delisting_period,a.board,a.historical_state_status,
+                       e.exp_is_st,e.exp_is_star_st
+                FROM {st} a JOIN expected e USING(trade_date,ts_code)
+                WHERE a.is_st IS DISTINCT FROM e.exp_is_st
+                   OR a.is_star_st IS DISTINCT FROM e.exp_is_star_st
+                   OR a.is_delisting_period IS NOT NULL OR a.board IS NOT NULL
+                   OR (a.is_listed AND a.historical_state_status='namechange_derived' AND a.is_st IS NULL)
+                   OR (a.is_listed AND a.is_st IS NOT NULL AND a.historical_state_status<>'namechange_derived')''')
             self.report['observations']['retained_before_delisting'] = s.db.execute(f'''SELECT count(*) FROM {st} a JOIN {basic} b USING(ts_code)
                 WHERE a.is_listed AND {date_sql('b.delist_date')} IS NOT NULL AND a.trade_date<{date_sql('b.delist_date')}''').fetchone()[0]
+            self.report['observations']['historical_state_status'] = s.rows(
+                f'SELECT historical_state_status,count(*) AS row_count FROM {st} GROUP BY 1 ORDER BY 1')
         if 'daily_trade_status' in r:
             t = r['daily_trade_status']
             self.check('daily_trade_status', 'directional_constraints', ['can_buy', 'can_sell'], f'''SELECT trade_date,ts_code,is_listed,is_suspended,is_limit_up,is_limit_down,can_buy,can_sell
@@ -217,8 +256,32 @@ class Quality:
                 OR (can_buy AND cannot_buy_reason IS NOT NULL) OR (can_sell AND cannot_sell_reason IS NOT NULL)
                 OR (can_buy AND (is_suspended IS NULL OR is_limit_up IS NULL))
                 OR (can_sell AND (is_suspended IS NULL OR is_limit_down IS NULL))''')
+            limit_raw = s.raw('stk_limit')
+            self.check('daily_trade_status', 'limit_price_sources', ['up_limit', 'down_limit', 'limit_price_exists'], f'''
+                WITH valid_raw AS (
+                    SELECT {date_sql('x.trade_date')} AS trade_date, x.ts_code,
+                           try_cast(x.up_limit AS DOUBLE) AS up_limit,
+                           try_cast(x.down_limit AS DOUBLE) AS down_limit
+                    FROM {limit_raw} x
+                    WHERE try_cast(x.up_limit AS DOUBLE) IS NOT NULL AND try_cast(x.down_limit AS DOUBLE) IS NOT NULL
+                      AND isfinite(try_cast(x.up_limit AS DOUBLE)) AND isfinite(try_cast(x.down_limit AS DOUBLE))
+                      AND try_cast(x.up_limit AS DOUBLE)>try_cast(x.down_limit AS DOUBLE)
+                      AND try_cast(x.down_limit AS DOUBLE)>0
+                )
+                SELECT t.trade_date,t.ts_code,t.up_limit,t.down_limit,t.limit_price_exists
+                FROM {t} t LEFT JOIN valid_raw v ON t.trade_date=v.trade_date AND t.ts_code=v.ts_code
+                WHERE (t.limit_price_exists AND (v.ts_code IS NULL OR t.up_limit IS DISTINCT FROM v.up_limit
+                          OR t.down_limit IS DISTINCT FROM v.down_limit))
+                   OR (NOT t.limit_price_exists AND v.ts_code IS NOT NULL)''')
+            self.check('daily_trade_status', 'limit_direction_from_price_evidence', ['is_limit_up', 'is_limit_down', 'up_limit', 'down_limit'], f'''
+                SELECT trade_date,ts_code,raw_close,up_limit,down_limit,is_limit_up,is_limit_down
+                FROM {t} WHERE limit_price_exists AND quotation_exists
+                  AND (is_limit_up IS DISTINCT FROM (raw_close>=up_limit OR list_contains(observed_limit_events,'U'))
+                    OR is_limit_down IS DISTINCT FROM (raw_close<=down_limit OR list_contains(observed_limit_events,'D')))''')
             self.report['observations']['trade_unknowns'] = s.rows(f'''SELECT count(*) FILTER(WHERE can_buy IS NULL) AS buy_unknown,
                 count(*) FILTER(WHERE can_sell IS NULL) AS sell_unknown FROM {t}''')[0]
+            self.report['observations']['limit_price_coverage'] = s.rows(f'''SELECT count(*) FILTER(WHERE limit_price_exists) AS with_limit_price,
+                count(*) FILTER(WHERE limit_price_exists IS NOT TRUE AND quotation_exists) AS quoted_without_limit_price FROM {t}''')[0]
 
     def financial(self):
         s, r = self.store, self.relations
@@ -354,7 +417,7 @@ class Quality:
             FROM {u} u LEFT JOIN {cfg} c USING(universe_id,config_id) WHERE c.status IS DISTINCT FROM 'active' ''')
         for row in s.rows(f'SELECT * FROM {cfg}'):
             expected = hashlib.sha256(row['config_json'].encode('utf-8')).hexdigest()
-            if row['config_id'] != expected or (row['exclude_st'] and row['status'] != 'deferred'):
+            if row['config_id'] != expected or (row['exclude_st'] and row['status'] != 'active'):
                 self.fail('research_universe_config', 'rule_identity_or_deferral', ['config_id', 'status'], [row])
         self.check('daily_research_universe', 'missing_security_date', ['trade_date', 'ts_code', 'universe_id'], f'''SELECT s.trade_date,s.ts_code,c.universe_id
             FROM {st} s CROSS JOIN {cfg} c ANTI JOIN {u} u ON u.trade_date=s.trade_date AND u.ts_code=s.ts_code AND u.universe_id=c.universe_id
@@ -362,6 +425,8 @@ class Quality:
         expected = '''CASE WHEN NOT s.is_listed OR s.is_delisted OR NOT s.is_a_share THEN false
             WHEN s.is_listed IS NULL OR s.is_a_share IS NULL THEN NULL
             WHEN c.exclude_bj AND ends_with(s.ts_code,'.BJ') THEN false
+            WHEN c.exclude_st AND s.is_st THEN false
+            WHEN c.exclude_st AND s.is_st IS NULL THEN NULL
             WHEN c.min_listing_trade_days=0 THEN true
             WHEN s.listing_trade_days IS NOT NULL THEN s.listing_trade_days>=c.min_listing_trade_days
             WHEN s.listing_trade_days_lower_bound>=c.min_listing_trade_days THEN true ELSE NULL END'''

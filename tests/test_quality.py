@@ -23,7 +23,7 @@ from core.universe.research import build_research_universe
 def quality_store(tmp_path, golden_root):
     with Store(Paths(golden_root, tmp_path / "middle")) as store:
         core = sorted(table for table, spec in store.tables.items() if spec.get("stage1"))
-        assert len(core) == 9
+        assert len(core) == 11
         profile_all(store, core)
         build_calendar(store)
         build_adjusted_price(store)
@@ -65,8 +65,9 @@ def test_complete_golden_pipeline_passes_supported_scope_and_reports_deferrals(q
     assert report["passed"] is True
     assert report["full_phase_passed"] is False
     assert report["failures"] == []
-    assert report["capabilities"]["historical_st"]["status"] == "deferred"
+    assert report["capabilities"]["historical_st"]["status"] == "active"
     assert report["capabilities"]["historical_st"]["reason"]
+    assert report["capabilities"]["historical_delisting_period"]["status"] == "deferred"
     for table in ("daily_calendar", "daily_adjusted_price", "daily_stock_state", "daily_trade_status",
                   "financial_available", "quarterly_financial", "ttm_financial", "daily_research_universe",
                   "research_universe_config"):
@@ -74,7 +75,7 @@ def test_complete_golden_pipeline_passes_supported_scope_and_reports_deferrals(q
         assert {"schema", "rows", "null_counts", "date_ranges", "primary_key", "fingerprint", "sha256"} <= profile.keys()
         assert profile["rows"] > 0
     config = quality_store.output_relation("l2", "research_universe_config")
-    assert quality_store.db.execute(f"SELECT count(*) FROM {config} WHERE status='deferred'").fetchone()[0] == 3
+    assert quality_store.db.execute(f"SELECT count(*) FROM {config} WHERE status='deferred'").fetchone()[0] == 0
     assert quality_store.paths.output("l2", "data_quality_report", "report.json").is_file()
     assert quality_store.paths.output("l2", "data_quality_report", "REPORT.md").is_file()
 
@@ -315,6 +316,33 @@ def test_later_delisted_security_remains_in_its_earlier_identity_sample(quality_
     )
     report = _failed_report(quality_store)
     _assert_context(report, "daily_research_universe", "is_in_universe", code="600001.SH", day="2019-01-22")
+
+
+def test_invented_st_flag_outside_namechange_intervals_is_reported(quality_store):
+    relation = quality_store.output_relation("l1", "daily_stock_state")
+    condition = "ts_code='000001.SZ' AND trade_date=DATE '2019-01-10'"
+    quality_store.publish(
+        "l1", "daily_stock_state",
+        f"SELECT * REPLACE (CASE WHEN {condition} THEN true ELSE is_st END AS is_st, "
+        f"CASE WHEN {condition} THEN 'namechange_derived' ELSE historical_state_status END AS historical_state_status) FROM {relation}",
+        ["trade_date", "ts_code"],
+    )
+    report = _failed_report(quality_store)
+    _assert_context(report, "daily_stock_state", "is_st", code="000001.SZ", day="2019-01-10")
+
+
+def test_limit_direction_inconsistent_with_price_evidence_is_reported(quality_store):
+    relation = quality_store.output_relation("l1", "daily_trade_status")
+    condition = "ts_code='000001.SZ' AND trade_date=DATE '2019-01-08'"
+    quality_store.publish(
+        "l1", "daily_trade_status",
+        f"SELECT * REPLACE (CASE WHEN {condition} THEN true ELSE is_limit_up END AS is_limit_up, "
+        f"CASE WHEN {condition} THEN 'LIMIT_UP' ELSE cannot_buy_reason END AS cannot_buy_reason, "
+        f"CASE WHEN {condition} THEN false ELSE can_buy END AS can_buy) FROM {relation}",
+        ["trade_date", "ts_code"],
+    )
+    report = _failed_report(quality_store)
+    _assert_context(report, "daily_trade_status", "is_limit_up", code="000001.SZ", day="2019-01-08")
 
 
 def test_output_file_fingerprint_detects_valid_parquet_metadata_tampering(quality_store):

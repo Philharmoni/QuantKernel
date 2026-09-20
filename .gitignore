@@ -1,7 +1,10 @@
 # Raw and derived data are local-only; raw data is read-only.
+# 下载脚本产出的所有表数据（namechange/stk_limit/财务补数等）都在这些目录下，不进版本库。
 /data/
 /data_middle/
 /data_sample/
+/data_supplement/
+nohup.out
 /reports/
 /logs/
 

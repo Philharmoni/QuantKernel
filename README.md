@@ -9,16 +9,18 @@ Current scope: **Stage 1 data processing layer**. The project does not implement
 The supported Stage 1 pipeline is implemented and tested:
 
 - L0 source profiling and validation.
-- L1 trading calendar, adjusted prices, stock identity state, trade feasibility, financial availability, quarterly financials, and TTM financials.
-- L2 strategy-independent research universe and data quality report.
-- Golden fixture tests for calendar, prices, stock state, trade status, financial PIT, quality checks, and reproducibility helpers.
+- L1 trading calendar, adjusted prices, stock identity state (with namechange-derived historical names and ST status), trade feasibility (with per-stock daily limit-price evidence), financial availability, quarterly financials, and TTM financials.
+- L2 strategy-independent research universe (including the three `ex_st` samples, active since the 2026-09 improvement round) and data quality report.
+- Golden fixture tests for calendar, prices, stock state, namechange-derived ST, limit prices, trade status, financial PIT, quality checks, and reproducibility helpers.
 
-Known incomplete or deferred capabilities are documented in [docs/DATA_SOURCE_NOTES.md](docs/DATA_SOURCE_NOTES.md) and [STAGE1_NEXT_IMPROVEMENTS.md](STAGE1_NEXT_IMPROVEMENTS.md). The important ones are historical ST/name-change intervals, delisting-period intervals, complete stock-level daily limit prices, exact pre-2018 listing trading age, announcement timestamps, and full supplier revision archives.
+The trading calendar now covers 20180102–20260911 after the `trade_cal` extension; quotes and suspensions still start at 20180601 and those ranges are gated by actual source coverage. Historical ST/*ST is derived from `namechange` intervals (a name containing `ST` marks the ST state) and per-stock daily limit prices come from `stk_limit`; both sources were added in the 2026-09 improvement round described in [STAGE1_NEXT_IMPROVEMENTS.md](STAGE1_NEXT_IMPROVEMENTS.md).
 
-The latest local test run before repository cleanup was:
+Known incomplete or deferred capabilities are documented in [docs/DATA_SOURCE_NOTES.md](docs/DATA_SOURCE_NOTES.md) and [STAGE1_NEXT_IMPROVEMENTS.md](STAGE1_NEXT_IMPROVEMENTS.md). The important ones are historical delisting-period intervals, exact pre-2018 listing trading age (natural-day and estimated alternatives are provided), announcement timestamps, full supplier revision archives, and historical security-code mapping.
+
+The latest local test run:
 
 ```text
-144 passed
+168 passed
 ```
 
 Generated `data_middle/` outputs were removed before GitHub publishing because they are large and fully rebuildable.
