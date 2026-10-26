@@ -289,3 +289,51 @@ manifest 记录主键 `trade_date`、字段类型、配置指纹及 Parquet SHA-
 - 财务链路（Step 8/9）按约定未改动；改进计划第 4 点（缺失季度）保留待单独任务。
 - 仍未解除：退市整理期区间、20180102 前精确上市交易日数（已提供自然日/估算替代字段）、
   公告时刻、供应商完整修订档案、历史换码映射、跨市场身份、服务器小区间验证（deferred_by_user）。
+
+## 准入轮（2026-10）：重复性验证与第二阶段准入
+
+### 规划修订（用户决策）
+
+第二阶段确定先行在本机（macOS）运行、暂不部署服务器。据此修订规划准入条件 8
+（`DATA_PROCESSING_STAGE1_PLAN.md` 第 8 节与 Step 11 两处）：原"服务器真实数据至少完成
+一次小区间构建验证"改为**本地目标环境验证**——两次独立全量构建产物语义一致。
+服务器小区间验证保留为二阶段期间实际迁移服务器（Linux）前的必做项
+（`server` profile + 跨平台语义比对），`verification/server_validation.json`
+标记 `deferred_by_user` 并记录恢复条件。
+
+### 重复性验证
+
+- `build_stage1.py --record-run admission_first`（297.28s，含 L0 复用画像）与
+  `--reuse-l0 --record-run admission_repeat`（212.93s）两次独立全量构建均通过。
+- `compare_stage1_runs.py admission_first admission_repeat`：**0 差异通过**
+  （同平台比较，含九张产物文件 sha256、schema、行数、语义指纹与全部运行身份字段）。
+
+### 发现并修复的过时断言
+
+重复性比较首轮失败，根因是 V1.1 轮新增 `namechange`、`stk_limit` 两个数据源
+（L0 画像 69 → 71）后，三处硬编码期望值漏更新：
+
+- `scripts/compare_stage1_runs.py`：full 范围期望画像数 69 → 71；
+- `scripts/capture_local_validation.py`：`len(table_config)` 断言与两处报错文案 69 → 71；
+- `tests/test_compare_stage1_runs.py`：夹具画像数 `range(69)` → `range(71)`。
+
+修正后重跑比较 0 差异；全量测试 **168 项通过（28.95 秒）**。
+
+### 验收与准入结论
+
+质量检查重跑后验收证据：`raw_unchanged: passed`、`repeatability: passed`、
+`server: deferred_by_user`（显式决策记录）。规划第 8 节八项准入条件逐条核对：
+
+1. 全量真实数据本地读取与画像 —— 满足（71 份 L0 画像）；
+2. 黄金测试覆盖边界场景 —— 满足（168 项测试）；
+3. 日历/价格/状态/可行性/财务 PIT/样本空间全部通过测试 —— 满足；
+4. 退市股历史保留 —— 满足（288,376 个成员证券日）；
+5. ST/新股/停牌/涨跌停按历史日期标注 —— 满足；
+6. 财务不按报告期提前使用 —— 满足（strict_announcement_delay 检查）；
+7. 主键唯一、配置可追溯、重复运行一致 —— 满足（repeatability passed）；
+8. 目标环境验证 —— 满足（本地两次独立构建语义一致，修订后口径）。
+
+**第二阶段（因子研究）准入成立。**`full_phase_passed` 标志继续为 false：
+该标志衡量的是"无任何挂起/受限能力的完整阶段"，与上述规划准入是两个口径；
+挂起能力（退市整理期、历史换码映射等缺源项）作为已知边界带入第二阶段，
+不阻塞准入。

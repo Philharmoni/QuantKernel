@@ -106,7 +106,8 @@ def compare_runs(first_path, second_path, output_path, *, same_platform=True, lo
                 or any(not isinstance(name, str) or not name.strip() or not _sha(digest)
                        for name, digest in profiles.items())):
             fail(f'{label}.l0_profiles', reason='Expected a nonempty profile-name-to-SHA-256 mapping')
-        expected_profiles = 9 if run.get('l0_scope') == 'core' else 69 if run.get('l0_scope') == 'full' else None
+        # 71 = 69 (V1) + namechange + stk_limit (V1.1)；须与 configs/tushare_tables.yaml 的表数同步更新
+        expected_profiles = 9 if run.get('l0_scope') == 'core' else 71 if run.get('l0_scope') == 'full' else None
         if isinstance(profiles, dict) and expected_profiles is not None and len(profiles) != expected_profiles:
             fail(f'{label}.l0_profiles.count', len(profiles), expected_profiles,
                  'Profile count must match the recorded L0 scope')

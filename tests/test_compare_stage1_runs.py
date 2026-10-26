@@ -21,7 +21,7 @@ def test_saved_run_comparison_checks_required_identity_and_outputs(tmp_path):
     run = {'passed': True, 'code_hash': 'b' * 64, 'config_hash': 'c' * 64,
            'raw_signature': {'signature': 'd' * 64, 'file_count': 9, 'total_bytes': 900},
            'start': None, 'end': None, 'l0_scope': 'full',
-           'l0_profiles': {f'source_{i:02d}': '3' * 64 for i in range(69)},
+           'l0_profiles': {f'source_{i:02d}': '3' * 64 for i in range(71)},
            'stages': [{'stage': stage, 'passed': True} for stage in (
                'L0', 'daily_calendar', 'daily_adjusted_price', 'daily_stock_state',
                'daily_trade_status', 'financial_available', 'quarterly_and_ttm', 'research_universe')],

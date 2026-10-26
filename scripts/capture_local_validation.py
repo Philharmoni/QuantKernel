@@ -110,11 +110,12 @@ def capture(paths, label, strict_report_path):
     require(archived_config == settings, 'Archived configuration differs from the current configuration')
 
     summary, summary_proof = read_evidence(paths.output('l0', 'profile_summary.json'))
-    require(len(table_config) == 69 and summary.get('passed') is True and summary.get('scope') == 'full'
+    # 71 = 69 (V1) + namechange + stk_limit (V1.1)；须与 configs/tushare_tables.yaml 的表数同步更新
+    require(len(table_config) == 71 and summary.get('passed') is True and summary.get('scope') == 'full'
             and summary.get('config_hash') == config_hash and not summary.get('errors')
-            and set(summary.get('tables', {})) == set(table_config), 'All 69 L0 profiles must have passed under the current configuration')
+            and set(summary.get('tables', {})) == set(table_config), 'All 71 L0 profiles must have passed under the current configuration')
     profile_paths = {p.stem: p for p in paths.output('l0', 'profiles').glob('*.json')}
-    require(set(profile_paths) == set(table_config), 'The 69 L0 profile files must match the configured sources')
+    require(set(profile_paths) == set(table_config), 'The 71 L0 profile files must match the configured sources')
     profile_hashes = {}
     for name, spec in table_config.items():
         profile, proof = read_evidence(profile_paths[name])
