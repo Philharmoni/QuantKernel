@@ -1,0 +1,19 @@
+{
+  "fictional": true,
+  "files": {
+    "daily_adjusted_price.csv": "a36d9f33aa2c246939f6f07d590b4a5edfbfb9756daa887f4af027c214512c86",
+    "daily_calendar.csv": "85d244cccbd515b23987652453227c406e8a2b7bfc6766347c0052cc45c58026",
+    "daily_index_member.csv": "e92d0ee65e85375558db4e6315e3f801aa8e0287517c88a48a99bfc832c1857e",
+    "daily_industry.csv": "3fb369f31eaa6506d9a844ef5b9e0fadf6cb620467a70f712d22244e709ce1e5",
+    "daily_research_universe.csv": "3e5a6dd9281d22fee7000ab53aa8353f51ed28c5c16b48a54d1d9892a892f63b",
+    "daily_stock_state.csv": "a8ca2d4f001788d356e0082c6118f08aad7c4e60b24085bceb9d234d19f84bdf",
+    "daily_trade_status.csv": "3fc6e11262cf4c9b872370231d89c171b83b9b885481e1305ee0e9bf20f382c3",
+    "expected.json": "e644b92aff42ea789d5d3578d4450ab62ef681ea585b3cdaa80950cebceb8d8d",
+    "factor_processed.csv": "f52660da09a069977bd44937fac1f909b253b33aa59ea914b3ce380ff0a22056",
+    "financial_available.csv": "75c4af761037ce2e7adee1dbd336c7dd1d56c8ff511e368d37db4315742a8844",
+    "forward_return_research_only.csv": "fc0295e7f64744174a0286f0e31ce08b7e328d5795d5755380613a127ee38d4e",
+    "scenario_registry.json": "c4411a4482b3e55a7f1696d0d4aec811580ae20d30e89d8293be2ac6171a076c"
+  },
+  "fixture_version": 1,
+  "real_data_accessed": false
+}

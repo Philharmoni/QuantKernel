@@ -8,10 +8,10 @@ financial:
   # This filter applies only to cumulative-quarter/TTM derivation.
   # financial_available retains all original report types and versions.
   cumulative_fields:
-    income_vip: [revenue, n_income_attr_p]
+    income_vip: [revenue, n_income_attr_p, oper_cost, operate_profit, total_profit]
     cashflow_vip: [n_cashflow_act]
   point_in_time_fields:
-    balancesheet_vip: [total_assets]
+    balancesheet_vip: [total_assets, total_hldr_eqy_exc_min_int, total_liab, total_cur_assets, total_cur_liab]
   non_cumulative_fields:
     fina_indicator: [eps]
   missing_quarter_policy: null_with_reason
@@ -37,6 +37,19 @@ historical_status:
   interval_semantics: closed_start_closed_end
   overlap_policy: agreed_value_else_null_ambiguous
   uncovered_policy: null_with_uncovered_status
+
+# Stage 2 Step 2 reference-data ingestion (core.reference.membership): raw
+# passthrough/validation of index_member_all and index_weight, mirroring the
+# financial/market builders' split between raw ingestion (here) and business
+# derivation (core.industry/core.benchmark, which must never call Store.raw()).
+reference_membership:
+  index_member_key: [ts_code, l1_code, in_date]
+  index_weight_key: [index_code, con_code, trade_date]
+
+# Stage 2 Step 4 reference-data ingestion (core.reference.market): raw
+# passthrough/validation of index_daily for the official-benchmark calibration.
+reference_market:
+  index_daily_key: [ts_code, trade_date]
 
 universe_rules:
   - universe_id: all_a
@@ -112,3 +125,11 @@ capabilities:
   historical_market_membership:
     status: deferred
     reason: 北交所股票存在早于当前stock_basic.list_date的历史报价，缺少可靠的跨市场身份生效区间。保留报价，但A股上市身份以明确list_date为起点，不将当前北交所身份回溯到早期报价。
+  official_index_verification:
+    status: suspended
+    reason: 000300.SH/000905.SH官方日线与权重的联网下载和权重轴核验挂起；当前相关指数评价为自建成分覆盖切片，000852.SH仅完成已有数据标定，不宣称官方基准复刻。
+  industry_pit_history:
+    status: limited
+    reason: index_member_all目前仅有is_new='Y'的当前快照（无历史is_new='N'区间，out_date全空），core.industry.pit发布的daily_industry的strict口径（industry_pit_status
+      IN ('pit_history','snapshot_after_in_date')）仅能确认trade_date>=in_date起的归属，之前为unknown；backfilled口径（额外纳入snapshot_backfilled）用当前分类回填更早日期，承担前视风险，在
+      configs/factor_research.yaml的industry段显式标注。pit_history状态保留给未来补齐历史is_new='N'区间后使用，当前永不出现。

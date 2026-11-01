@@ -7,7 +7,7 @@ name = "QuantKernel"
 version = "0.1.0"
 description = "Read-only TuShare data processing kernel for quantitative research"
 requires-python = ">=3.10"
-dependencies = ["PyYAML>=6", "pyarrow>=14", "duckdb>=1.5.5,<2"]
+dependencies = ["PyYAML>=6", "pyarrow>=14", "duckdb>=1.5.5,<2", "numpy>=1.26"]
 
 [project.optional-dependencies]
 test = ["pytest>=8"]

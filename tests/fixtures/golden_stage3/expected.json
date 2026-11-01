@@ -1,0 +1,236 @@
+{
+  "fixture_version": 1,
+  "calendar": {
+    "trading_days": 83,
+    "T": "2020-03-30",
+    "D": "2020-03-31",
+    "holidays": [
+      "2020-04-06",
+      "2020-05-01",
+      "2020-05-04",
+      "2020-05-05"
+    ],
+    "calendar_declared_non_open_dates": [
+      "2020-04-06",
+      "2020-05-01",
+      "2020-05-02",
+      "2020-05-03",
+      "2020-05-04",
+      "2020-05-05"
+    ]
+  },
+  "signal": {
+    "SA001.SZ": {
+      "value_module": 1,
+      "reversal_module": 0.6,
+      "low_vol_module": 0.3,
+      "score": 0.6333333333333333,
+      "formula": "((1+1)/2 + 0.6 + 0.3)/3"
+    },
+    "SA003.SZ": "excluded_missing_sp_ttm",
+    "all_equal_at": "2020-05-15"
+  },
+  "fixture_overrides": {
+    "target_count": 3,
+    "retain_rank_through": 4,
+    "universe_min_adv20_cny": 0,
+    "min_cross_section": 4,
+    "min_common_factor_coverage": 0.5,
+    "min_listing_trade_days": 120
+  },
+  "buffer": {
+    "ranked": [
+      "SA001.SZ",
+      "SA002.SZ",
+      "SA004.SZ",
+      "SA003.SZ",
+      "SA005.SZ"
+    ],
+    "held": [
+      "SA003.SZ",
+      "SA004.SZ"
+    ],
+    "target": [
+      "SA001.SZ",
+      "SA004.SZ",
+      "SA003.SZ"
+    ],
+    "rule": "retain held ranks <=4, fill to 3 by score; SA002 displaced"
+  },
+  "pit": {
+    "original_visible": "2020-03-30",
+    "revision_not_visible_until": "2020-03-31",
+    "SA007_before_in_date": "unknown",
+    "SA007_from": "2020-04-14",
+    "index_member_first_visible": "2020-03-30",
+    "new_member_first_visible": "2020-03-31",
+    "T_decision_must_ignore_D_close_and_amount": true
+  },
+  "execution": {
+    "SA004.SZ": {
+      "date": "2020-03-31",
+      "side": "BUY",
+      "open": 13.2,
+      "up_limit": 13.2,
+      "result": "reject_open_up_limit"
+    },
+    "SA002.SZ": {
+      "date": "2020-03-31",
+      "side": "SELL",
+      "open": 9.9,
+      "down_limit": 9.9,
+      "result": "reject_open_down_limit"
+    },
+    "SA003.SZ": {
+      "date": "2020-03-31",
+      "result": "reject_full_day_suspension"
+    },
+    "SA003.SZ_intraday": {
+      "date": "2020-04-01",
+      "result": "reject_intraday_suspension_conservative"
+    },
+    "SA011.SZ": {
+      "date": "2020-03-31",
+      "result": "reject_missing_limit"
+    },
+    "SA010.SZ": {
+      "date": "2020-03-31",
+      "open": 20,
+      "result": "same_T_quantity_intent_not_reoptimized"
+    },
+    "SA009.SZ": {
+      "date": "2020-03-31",
+      "adv20_t": 20000000,
+      "full_day_amount_d": 16000000,
+      "requested_notional": 200000,
+      "fill_notional": 160000,
+      "remaining_notional": 40000,
+      "result": "partial_fill_no_replacement",
+      "formula": "min(1%*20000000,1%*16000000)=160000"
+    },
+    "daily_amount_cap": "min(1% ADV20_T, 1% full_day_amount_D); D is upper bound only",
+    "zero_fill_day": "cash_unchanged_no_nav_drop_from_unfilled_order"
+  },
+  "cash_fees": {
+    "initial_cash": 10000,
+    "reserved_fee": 10,
+    "available_for_purchase": 9990,
+    "buy_notional": 9990,
+    "sell_proceeds": 5000,
+    "sell_tax": 5,
+    "same_day_buying_power_from_sale": 0,
+    "next_day_available_sale_cash": 4995,
+    "commission_small_order": 5,
+    "commission_formula": "max(5, notional*0.0003)",
+    "transfer_fee_formula": "notional*0.000002"
+  },
+  "accounting": {
+    "mode": "adjusted_unit_proxy",
+    "initial_cash": 1000,
+    "buy": {
+      "date": "2020-03-30",
+      "ts_code": "SA005.SZ",
+      "raw_price": 14,
+      "adj_factor": 1,
+      "units": 50,
+      "cash_after": 300
+    },
+    "valuation_after_split": {
+      "date": "2020-03-31",
+      "raw_price": 14,
+      "adj_factor": 2,
+      "unit_value": 28,
+      "position_value": 1400,
+      "nav": 1700,
+      "cash_dividend_added": 0
+    },
+    "real_share_account": "blocked_company_action_ledger"
+  },
+  "lifecycle": {
+    "ST_exit_signal": "2020-04-14",
+    "delisting_effective": "2020-04-28",
+    "delisted_position": "retain_non_tradable_asset_no_last_price_fill",
+    "stale_write_down": {
+      "60": 0.5,
+      "120": 1.0
+    },
+    "ordinary_order": "expire_after_D",
+    "risk_exit": "resubmit_next_day",
+    "T_plus_one_sell": true,
+    "last_authorized_signal": "execution_beyond_permission_no_2025_fill"
+  },
+  "constraints": {
+    "stock_budget": 0.95,
+    "frozen_weight": 0.2,
+    "free_weight": 0.75,
+    "candidate_count": 3,
+    "ideal_each_before_single_cap": 0.25,
+    "after_single_cap": [
+      0.02,
+      0.02,
+      0.02
+    ],
+    "cash_after_infeasible_freeze": 0.86,
+    "stock_after_infeasible_freeze": 0.14,
+    "expected": "keep_positions_no_new_risk_risk_exit_only",
+    "infeasible": "keep_positions_no_new_risk_risk_exit_only",
+    "no_silent_constraint_relaxation": true,
+    "frozen_weight_not_removed": true
+  },
+  "nav_reconciliation": {
+    "initial_cash": 1000,
+    "buy_notional": 600,
+    "adj_factor": 1,
+    "units": 60,
+    "raw_price": 10,
+    "commission": 5,
+    "transfer_fee": 0.0012,
+    "cash_after": 394.9988,
+    "adj_factor_after": 2,
+    "position_value": 1200,
+    "nav_after": 1594.9988,
+    "fees_total": 5.0012,
+    "wealth_identity": "1594.9988=1200+394.9988; no second dividend or share credit"
+  },
+  "non_overlapping_periods": {
+    "dates": [
+      "D0",
+      "D1",
+      "D2",
+      "D3",
+      "D4"
+    ],
+    "period_1_return": 0.1,
+    "period_2_return": -0.05,
+    "compound_return": 0.045,
+    "formula": "(1+0.10)*(1-0.05)-1=0.045; each holding counted once"
+  },
+  "research_controls": {
+    "eligible_budget": 2,
+    "diagnostic_budget": 5,
+    "two_concurrent_reservations": "exactly_one_winner",
+    "oos_token": "reserved_before_read",
+    "used_token_release": "denied",
+    "corrupt_manifest": "reject",
+    "duplicate_key": "reject",
+    "interrupted_publish": "not_complete"
+  },
+  "permission_failures": [
+    "entry_date_2025",
+    "exit_date_2025",
+    "iso_2025_date",
+    "omitted_end",
+    "full_calendar_scan_not_scope_proof",
+    "physical_snapshot_or_bounded_read_certificate_required"
+  ],
+  "research_failures": [
+    "concurrent_trial_reservation_single_winner",
+    "oos_token_reserved_before_read",
+    "used_or_result_seen_token_not_released",
+    "budget_2_candidates_5_diagnostics",
+    "corrupt_input_manifest_reject",
+    "duplicate_primary_key_reject",
+    "interrupted_publish_not_complete"
+  ],
+  "implementation_scope": "Expectations only. Steps 3-6 must implement and prove these cases; no strategy algorithm is provided by this fixture."
+}

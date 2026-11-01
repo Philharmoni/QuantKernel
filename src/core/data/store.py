@@ -145,10 +145,14 @@ class Store:
                             f"TO {qs(temporary.as_posix())} (FORMAT PARQUET, COMPRESSION ZSTD, ROW_GROUP_SIZE {row_group_size})")
         else:
             # Keep one portable Parquet artifact, but sort/stream independent
-            # leading-key groups so wide unions never require one giant sort.
+            # key groups so wide unions never require one giant sort. The
+            # partition field may be any primary-key field: Stage 1 partitions
+            # by the leading source_table, while factor_value partitions by
+            # factor_id (the last key field) and sorts by the full key inside
+            # each factor block.
             import pyarrow.parquet as pq
-            if partition_by != key[0]:
-                raise ValueError('Publication partition must be the leading primary-key field')
+            if partition_by not in key:
+                raise ValueError('Publication partition must be a primary-key field')
             field = qi(partition_by)
             values = self.db.execute(f'SELECT DISTINCT {field} FROM ({query}) ORDER BY {field}').fetchall()
             schema = self.db.execute(f'SELECT * FROM ({query}) LIMIT 0').to_arrow_table().schema

@@ -93,11 +93,14 @@ def test_only_explicit_cumulative_metrics_are_derived(tmp_path, golden_root):
             rows = _asof(store, table, "20190114")
             assert {(row["source_table"], row["metric"]) for row in rows} == {
                 ("income_vip", "revenue"), ("income_vip", "n_income_attr_p"),
+                ("income_vip", "oper_cost"), ("income_vip", "operate_profit"), ("income_vip", "total_profit"),
                 ("cashflow_vip", "n_cashflow_act"),
             }
             keys = [(row["source_table"], row["ts_code"], row["metric"], row["end_date"]) for row in rows]
             assert len(keys) == len(set(keys))
-        for source, metric in [("income_vip", "n_income_attr_p"), ("cashflow_vip", "n_cashflow_act")]:
+        for source, metric in [("income_vip", "n_income_attr_p"), ("cashflow_vip", "n_cashflow_act"),
+                                ("income_vip", "oper_cost"), ("income_vip", "operate_profit"),
+                                ("income_vip", "total_profit")]:
             ttm = _metric_rows(store, "ttm_financial", "20190114", source=source, metric=metric)
             assert ttm[date(2018, 12, 31)]["value"] == 100
 

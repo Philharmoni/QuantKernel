@@ -10,6 +10,11 @@ def golden_root():
 
 
 @pytest.fixture
+def golden_stage2_root():
+    return Path(__file__).parent / "fixtures" / "golden_stage2"
+
+
+@pytest.fixture
 def raw_rows(golden_root):
     def read(table):
         with (golden_root / f"{table}.csv").open(encoding="utf-8-sig", newline="") as stream:

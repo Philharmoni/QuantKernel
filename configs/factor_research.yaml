@@ -1,0 +1,188 @@
+# Stage 2 research conventions. Frozen per FACTOR_RESEARCH_STAGE2_PLAN.md section 4;
+# changing a value here after Step 1 fixtures are written requires a version bump
+# and a note in docs/STAGE2_EXECUTION.md, not a silent edit.
+version: 1
+
+engine:
+  threads: 4
+  # Raised from 2GB during Step 5: the baseline-factor build holds factor_parts
+  # staging (~100M rows) plus financial as-of expansions; 2GB OOMed.
+  # Applies to Stage 2 factor/evaluation builds, not the frozen Stage 1 engine.
+  memory_limit: '8GB'
+
+# Section 4.1: factor(T) uses only information available by T's close.
+timing:
+  factor_asof: trade_date_close
+  financial_asof_field: available_date
+  index_weight_publication_lag_trading_days: 5  # D7, tentative pending confirmation
+
+# Step 2: core.industry.pit's daily_industry.industry_pit_status enum and the
+# two usage policies built on it. See configs/data_middle_layer.yaml
+# capabilities.industry_pit_history for why snapshot_backfilled/unknown are
+# the only statuses index_member_all's current single-snapshot shape can
+# produce (pit_history is reserved, never emitted today).
+industry:
+  pit_statuses: [pit_history, snapshot_after_in_date, snapshot_backfilled, unknown]
+  strict_usable_statuses: [pit_history, snapshot_after_in_date]
+  backfilled_usable_statuses: [pit_history, snapshot_after_in_date, snapshot_backfilled]
+
+# Section 4.1/4.2: labels are built and stored independently of factor code.
+labels:
+  primary: ret_o2o_h          # T+1 open entry, T+1+h open exit
+  reference: ret_c2c_h        # T close to T+h close, upper-bound reference only
+  horizons: [1, 5, 10, 20]
+  primary_horizons: [5, 20]
+  max_exit_delay_trading_days: 60
+  # See plan section 4.2 for the full exception-path table; flags below are the
+  # canonical names produced by core.label and consumed by core.evaluation.
+  exception_flags: [entry_blocked, entry_open_at_up_limit, exit_delayed_days, delisted_in_window, beyond_data_end]
+
+sample:
+  quote_coverage_start: '20180601'
+  quote_coverage_end: '20260911'
+  evaluation_start: '20190701'       # covers 12-1 momentum lookback and TTM gap
+  in_sample_end: '20241231'
+  out_of_sample_start: '20250101'
+  out_of_sample_single_evaluation: true   # each factor version may be formally scored once
+  default_universe: all_a_ex_st_ipo120_ex_bj
+  reference_universes: [all_a_ex_st, index_member_hs300, index_member_zz500, index_member_zz1000]
+  min_cross_section_count: 300
+  quantiles: 10
+  min_quantiles: 5
+
+# Step 4: self-built benchmark daily returns. Members are taken at T, returns
+# at T+1 (daily_adjusted_price.ret_1d of the T+1 row, close-to-close adjusted);
+# members whose T+1 ret_1d is NULL are excluded from BOTH the equal-weight mean
+# and the cap-weight denominator (never counted as 0, never forward-filled).
+benchmark:
+  methods: [equal_weight, circ_mv_weight]
+  # long-format daily_research_universe rows with is_in_universe IS TRUE;
+  # benchmark_id equals the universe_id.
+  research_universes: [all_a_ex_st_ipo120_ex_bj, all_a_ex_st]
+  # L3 daily_index_member subsamples; benchmark_id is the evaluation-facing name.
+  index_universes:
+    - benchmark_id: index_member_hs300
+      index_code: 000300.SH
+    - benchmark_id: index_member_zz500
+      index_code: 000905.SH
+    - benchmark_id: index_member_zz1000
+      index_code: 000852.SH
+  calibration:
+    benchmark_id: index_member_zz1000
+    official_index_code: 000852.SH
+    min_overlap_days: 20
+    variance_ddof: 0          # population variance, same convention as preprocessing.standardize
+    annualization_days: 252
+    # Official index_daily is a price index (no dividend reinvestment), while
+    # self-built returns use adjusted closes; constituents also lag by the
+    # publication lag and circ_mv weighting is not the official free-float
+    # tiered weighting. The self-built series is an approximation, never
+    # presented as the official index.
+    basis: self_built_approximation_not_official_index
+
+preprocessing:
+  order: [filter, missing, winsorize, standardize, neutralize, standardize]
+  missing_policy: no_fill
+  # Frozen formula, pinned explicitly (not left implicit in the method name) so
+  # the Step 1 golden fixture's hand-computed expected values are unambiguous:
+  #   bound = median(x) +/- winsorize_k * MAD(x)
+  #   MAD(x) = median(|x - median(x)|)
+  # No 1.4826 normal-consistency scaling factor is applied.
+  winsorize_method: median_mad
+  winsorize_k: 5
+  # MAD == 0 would collapse every value onto the median (bounds width 0) and
+  # destroy the cross-section; skip clipping instead and record zero_mad_days.
+  winsorize_zero_mad: skip
+  standardize: zscore          # (x - mean) / population_std, ddof=0
+  neutralize: [industry_dummy, log_circ_mv]
+  # Step 6: processed panels are built per universe; extend this list when the
+  # Step 7 robustness checks need other samples processed as well.
+  universes: [all_a_ex_st_ipo120_ex_bj]
+  processes:
+    - process_id: ws_z                          # main version: winsorize + z-score
+      neutralize: false
+    - process_id: ws_z_industry_mv_neutral_z    # reference: + industry/MV neutralization + re-z
+      neutralize: true
+  # Neutralization uses only industries whose pit status is usable under the
+  # strict policy; everything else (incl. snapshot_backfilled) falls into the
+  # separate "unknown industry" dummy, whose share is reported per day.
+  industry_policy: strict
+  unknown_industry_label: __UNKNOWN__
+  # A day with fewer valid values than this produces NO output for that
+  # factor/universe (reason recorded), never a forward-filled panel.
+  min_cross_section: 30
+  # Neutral version additionally needs residual degrees of freedom
+  # n - (industry_groups + 1 slope) >= this; otherwise it is skipped with a reason.
+  min_neutralization_df: 10
+  # If the neutralized residual's std falls below this (factor nearly collinear
+  # with industry+log_circ_mv, so the OLS fit is essentially perfect), the
+  # neutral version is skipped as degenerate_residual_variance instead of
+  # re-standardizing float rounding noise into a fake cross-section.
+  min_residual_std: 1.0e-10
+  # Before/after-winsorize quantile comparison is reported on every Nth day to
+  # bound the report size (full per-day clip counts are always recorded).
+  quantile_sample_every_n_days: 100
+
+evaluation:
+  ic_variants: [ic, rank_ic]
+  icir_metric: rank_ic          # ICIR is computed on RankIC only, per user decision
+  annualization_days: 252
+  risk_free_rate: 0.0
+  newey_west_lag_rule: h_minus_1   # lag = h-1 trading days; h=1 uses the plain t-stat
+  rank_tie_method: average        # average-rank tie handling for RankIC and quantile-edge ranking
+  quantile_group_performance: [cumulative_return, annualized_return, sharpe, max_drawdown, calmar, win_rate, profit_loss_ratio]
+  long_short_quantiles: [1, -1]    # hold group 1 (best, direction-adjusted), short the last group
+  segment_horizons: [5, 20]        # cap/index segment tables use the primary horizons only
+  quantile_min_group_size: 5       # 10 groups, falling back to 5 when coverage is insufficient
+  # Each trade_index % h offset is an independent non-overlapping return path.
+  # Numeric group/long-short performance metrics are arithmetic means across
+  # offsets; drawdown dates come from the offset with the deepest drawdown.
+  offset_performance_aggregation: mean_metrics
+  # Cost per one-way unit turnover at which mean gross return becomes zero.
+  # Long-short turnover is the sum of the two legs' one-way turnover.
+  breakeven_cost: ratio_of_offset_averaged_gross_return_to_one_way_turnover
+
+# Step 8: transparent composites of direction-adjusted ws_z scores. The rolling
+# trainer uses only theoretical full-sample ret_o2o_5 RankIC observations whose
+# ENTIRE cross-section has max(exit_date) < T, and never uses labels realized
+# after in_sample_end. Signed ICIR weights are normalized by sum(abs(weight)).
+composition:
+  universe_id: all_a_ex_st_ipo120_ex_bj
+  process_id: ws_z
+  components: [log_total_mv, log_circ_mv, ep_ttm, sp_ttm, cfp_ttm, bp,
+               mom_12_1, mom_6_1, rev_20, vol_20, vol_60, turn_20,
+               amihud_20, log_amount_20, rev_yoy_q, np_yoy_q, roa_ttm, roe_ttm]
+  min_component_count: 8
+  correlation:
+    min_pair_days: 20
+    redundancy_threshold: 0.7
+    linkage: complete
+  composites:
+    - composite_id: composite_equal
+      method: equal_weight
+    - composite_id: composite_icir_60
+      method: rolling_icir
+      label_id: ret_o2o_5
+      sample_mode: theoretical
+      lookback_observations: 60
+      min_periods: 20
+      zero_variance_weight: 0.0
+
+repeatability:
+  float_tolerance: 1.0e-12
+  preferred_method: fixed_sort_order
+
+quality_gate:
+  # Step 10 always recomputes this cutoff for every registered factor; a saved
+  # "passed" flag alone is not accepted as truncation evidence.
+  truncation_dates: ['20241231']
+  deep_primary_keys_default: false
+  bounded_repeat_start: '20240101'
+  bounded_repeat_end: '20240331'
+
+# Step 0 admission gate: upstream Stage 1 products that must exist, pass the
+# Stage 1 quality report, and match their own manifests before any Stage 2
+# builder runs. Table/layer/key values must stay in sync with
+# core.quality.checks.TABLES (the Stage 1 definition of the nine core products).
+stage2_entry:
+  required_acceptance_evidence: [raw_unchanged, repeatability]

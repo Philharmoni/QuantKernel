@@ -463,20 +463,24 @@ tables:
     notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
   index_daily:
     path: index_daily/**/*.parquet
-    purpose: 指数日线行情，按日分区；本阶段仅登记和画像。
-    primary_key: []
+    purpose: 指数日线行情，按日分区；二阶段Step4用于自建基准的官方口径标定（000852.SH）。
+    primary_key: [ts_code, trade_date]
     date_fields:
     - trade_date
     code_field: ts_code
     required_fields:
     - trade_date
     - ts_code
+    - close
+    - pre_close
     stage1: false
-    notes: 原始README已登记此目录；首文件20190102.parquet，真实schema含ts_code/trade_date及OHLC。仅登记和画像，不用于本阶段派生；主键未确认。
+    notes: 首文件20190102.parquet，真实schema含ts_code/trade_date及OHLC/pre_close/pct_chg。二阶段 Step 4 由 core.reference.market 读取并发布
+      l1/index_daily_available，主键按(ts_code,trade_date)确认。本地仅有000852.SH（20190102–20260608，1800行），000300.SH/000905.SH下载按用户指令挂起；
+      index_daily为价格指数（不含分红再投资），与自建复权收益口径的差异须在标定报告中说明。
   index_member_all:
     path: index_member_all/**/*.parquet
     purpose: 申万行业分级成分，按目标股票集合拉取后合并为单文件。
-    primary_key: []
+    primary_key: [ts_code, l1_code, in_date]
     date_fields:
     - in_date
     - out_date
@@ -485,20 +489,25 @@ tables:
     - in_date
     - out_date
     - ts_code
+    - l1_code
     stage1: false
-    notes: 路径及日期/代码字段已由真实首文件schema确认；未用于本阶段派生，主键尚未确认。代码字段保留源含义，不保证表示A股股票。
+    notes: 路径及日期/代码字段已由真实首文件schema确认；代码字段保留源含义，不保证表示A股股票。二阶段 Step 2 由 core.reference.membership 读取并发布
+      l1/index_member_available，核实真实数据每个ts_code恰好一行、is_new全为'Y'、out_date全空（无历史is_new='N'区间）；主键按此确认为(ts_code,l1_code,in_date)。
   index_weight:
     path: index_weight/**/*.parquet
-    purpose: 五大指数月度成分和权重，每个指数一个总 parquet。
-    primary_key: []
+    purpose: 六个指数（000300.SH/000905.SH/000852.SH/000016.SH/399330.SZ/000510.SH）月度成分和权重，每个指数一个总 parquet。
+    primary_key: [index_code, con_code, trade_date]
     date_fields:
     - trade_date
     code_field: con_code
     required_fields:
     - trade_date
     - con_code
+    - index_code
+    - weight
     stage1: false
-    notes: README称五大指数，实际按指数有6个Parquet文件；保留真实文件数量，con_code为成分代码。未用于本阶段派生；主键未确认。
+    notes: README称五大指数，实际按指数有6个Parquet文件；保留真实文件数量，con_code为成分代码。二阶段 Step 2 由 core.reference.membership
+      读取并发布 l1/index_weight_available，核实真实数据无重复(index_code,con_code,trade_date)、weight均非负有限；主键按此确认。
   irm_qa_sh:
     path: irm_qa_sh/**/*.parquet
     purpose: 上证 e 互动问答，单次最大 3000；官方未给明确每分钟次数，按 500/min 本地限速。

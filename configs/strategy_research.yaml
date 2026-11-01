@@ -1,0 +1,251 @@
+version: 1
+plan: STRATEGY_RESEARCH_STAGE3_PLAN.md
+plan_contract_sha256: f8f61900f46ec12f50b019d6696ae1d33ebf64c8310b85986787d0465355b3b0
+status: frozen_step_0
+approval_scope:
+  user_instruction: implement_step_0_step_1_physical_snapshot_step_2_then_step_3
+  approved_steps: [0, 1, 2, 3]
+  snapshot_preparation_read: true
+  oos_access: false
+  network_download: false
+  modify_stage1_stage2: false
+  real_data_read: false
+  real_data_read_note: only_independent_snapshot_preparation_and_read_only_admission_authorized
+  real_share_account: false
+  live_trading: false
+
+objective:
+  type: diversified_long_only_relative_research
+  initial_capital_cny: 10000000
+  stock_target_weight: '0.95'
+  cash_target_weight: '0.05'
+  no_leverage: true
+  no_short: true
+
+permissions:
+  calendar_start: '20180601'
+  in_sample_end: '20241231'
+  oos_start: '20250101'
+  default_real_input_status: blocked_input_scope
+  allowed_real_input_modes: [physical_in_sample_snapshot, bounded_read_certificate]
+  metadata_only:
+    - configs/**
+    - docs/**
+    - data_middle/**/manifest.json
+    - data_middle/l4/factor_report/**
+    - data_middle/l4/factor_correlation/**
+    - data_middle/verification/stage2_quality_gate.json
+  unrestricted_file_reads: []
+  require_actual_label_exit_within_cutoff: true
+  no_full_calendar_or_full_file_hash_as_proof: true
+
+universe:
+  base_id: all_a_ex_st_ipo120_ex_bj
+  min_adv_observations: 20
+  min_adv20_cny: 20000000
+  exclude_bottom_circ_mv_fraction: '0.10'
+  min_cross_section: 300
+  min_common_factor_coverage: '0.70'
+  listing_trade_days: 120
+  industry_policy: strict
+  accepted_industry_statuses: [pit_history, snapshot_after_in_date]
+  unknown_industry_label: __UNKNOWN__
+  missing_policy: no_fill
+  degenerate_signal_policy: keep_positions_no_rebalance
+
+signal:
+  primary_id: c0_three_module_fixed
+  universe_id: all_a_ex_st_ipo120_ex_bj
+  process_id: ws_z
+  module_weight: '1/3'
+  components:
+    bp: '1/6'
+    sp_ttm: '1/6'
+    rev_20: '-1/3'
+    vol_20: '-1/3'
+  all_components_required: true
+  missing_component_renormalization: false
+  sort: [score DESC, ts_code ASC]
+
+rebalance:
+  trading_day_interval: 20
+  anchor: first_authorized_signal_date
+  target_count: 100
+  retain_rank_through: 120
+  ordinary_order_time_in_force: day
+  failed_order_replacement: false
+  risk_exit_recheck: every_trading_day_close
+
+execution:
+  model_id: daily_open_proxy_v1
+  price_field: open
+  price_kind: raw
+  observed_fill: false
+  buy_up_limit_comparison: open_ge_up_limit_reject
+  sell_down_limit_comparison: open_le_down_limit_reject
+  unknown_limit_or_status: block
+  t_plus_one_sell: true
+  sale_proceeds_available_after_trading_days: 1
+  daily_amount_participation: '0.01'
+  daily_amount_is_upper_bound: true
+  order_priority: [risk_exit, target_score, ts_code]
+  timestamp_precision: day_assumed
+
+portfolio:
+  optimizer: deterministic_projected_equal_weight
+  solver: none_until_step_4
+  solver_version: none_until_step_4
+  dependency_manifest: configs/stage3_dependencies.yaml
+  max_stock_weight: '0.02'
+  industry_active_limit: '0.05'
+  size_z_active_limit: '0.30'
+  size_bucket_active_limit: '0.10'
+  target_one_way_turnover_limit: '0.20'
+  order_adv_participation: '0.01'
+  position_adv_limit: '0.20'
+  frozen_weight_budget_first: true
+  infeasible_policy: keep_positions_no_new_risk_risk_exit_only
+
+accounting:
+  mode: adjusted_unit_proxy
+  price_formula: raw_price_times_adj_factor
+  units_are_real_shares: false
+  additional_dividend: false
+  cash_interest_rate: 0
+  stale_mark_to_last_valid: true
+  stress_write_down_after_no_quote_days: {'60': '0.50', '120': '1.00'}
+  delisting_zero_recovery_stress: true
+  real_share_account_status: blocked
+  real_share_account_requirements:
+    - accepted_company_action_ledger
+    - accepted_volume_and_amount_units
+    - accepted_board_lot_settlement_rules
+    - accepted_announcement_availability
+    - accepted_delisting_and_code_mapping
+
+costs:
+  cny_unit: yuan
+  impact_reference: adv20_at_signal_date
+  impact_volatility: trailing_20_population_std_at_signal_date
+  participation_cap: '0.01'
+  missing_volatility_policy: reject_order
+  main:
+    commission_rate: '0.0003'
+    commission_minimum_cny_per_stock_direction_day: '5'
+    transfer_fee_rate: '0.000002'
+    sell_tax_rate: '0.001'
+    impact_fixed_rate: '0.0005'
+    impact_volatility_coefficient: '0.1'
+  stress:
+    commission_rate: '0.0005'
+    transfer_fee_rate: '0.000004'
+    sell_tax_rate: '0.002'
+    impact_fixed_rate: '0.001'
+    impact_volatility_coefficient: '0.2'
+  fee_note: research_assumption_not_historical_fee_schedule
+
+benchmarks:
+  primary: eligible_passive_net
+  matched: common_support_passive_net
+  reference: existing_self_built_statistical_series_only
+  passive_stock_target_weight: '0.95'
+  passive_weight: circ_mv
+  apply_active_constraints_to_passive: false
+  official_index_claim: suspended
+
+research_protocol:
+  design_period: ['20190701', '20211231']
+  validation_period: ['20220101', '20231231']
+  confirmation_period: ['20240101', '20241231']
+  warm_up_period: ['20180601', '20190630']
+  eligible_candidate_ids: [c0_three_module_fixed, composite_equal]
+  diagnostic_candidate_ids:
+    - c0_rebalance_5
+    - c0_vol_60
+    - c0_turn_20
+    - c0_strict_neutral
+    - composite_icir_60
+  max_eligible_candidates: 2
+  max_diagnostics: 5
+  trial_policy: append_only_all_attempts
+  primary_candidate_id: c0_three_module_fixed
+  no_auto_champion_switch: true
+  horizon_purge_trading_days: 20
+  embargo_trading_days: 20
+  hac_lag: 20
+  annualization_days: 252
+  bootstrap_block_trading_days: 20
+  random_seed: 20261031
+  float_absolute_tolerance: '1e-12'
+  float_relative_tolerance: '1e-12'
+  promotion:
+    validation_net_relative_growth_gt: 0
+    confirmation_net_relative_growth_gte: 0
+    validation_net_information_ratio_gte: '0.30'
+    stressed_net_relative_growth_gte: 0
+    max_drawdown_lte: '0.35'
+    drawdown_worse_than_benchmark_lte: '0.05'
+    mean_stock_weight_gte: '0.80'
+    normal_rebalance_signal_availability_gte: '0.90'
+    terminal_unpriceable_or_stale_weight_lte: '0.01'
+
+boundaries:
+  industry_pit_history: limited
+  official_index_verification: suspended
+  limit_events_complete: false
+  announcement_timestamp: day_assumed
+  board_and_delisting_period: unavailable
+  volume_unit: not_validated
+  company_action_ledger: not_available
+  index_member_publication_lag_trading_days: 5
+
+delivery:
+  stage: R1_signals_admitted
+  root: data_middle/strategy_research
+  active_step3_run: step3_cd3844b567612ae5
+  step3_manifest: data_middle/strategy_research/runs/step3_cd3844b567612ae5/manifest.json
+  step3_verification: data_middle/strategy_research/runs/step3_cd3844b567612ae5/verification/step3_checks.json
+  current_input_status: admitted_physical_snapshot
+  active_input_bundle: in_sample_65efe5cadd765004
+  input_bundle_manifest: data_middle/strategy_research/inputs/in_sample_65efe5cadd765004/manifest.json
+  input_bundle_admission: data_middle/strategy_research/inputs/in_sample_65efe5cadd765004/admission.json
+  engineering_passed: false
+  economic_promoted: false
+  real_share_account_ready: false
+  live_ready: false
+  oos_accessed: false
+
+protected_scope:
+  hashes_file: configs/stage3_protected_hashes.json
+  paths:
+    - data
+    - data_middle/l0
+    - data_middle/l1
+    - data_middle/l2
+    - data_middle/l3
+    - data_middle/l4
+    - data_middle/verification
+    - DATA_PROCESSING_STAGE1_PLAN.md
+    - FACTOR_RESEARCH_STAGE2_PLAN.md
+    - docs/STAGE1_EXECUTION.md
+    - docs/STAGE2_EXECUTION.md
+    - configs/data_middle_layer.yaml
+    - configs/factor_research.yaml
+    - configs/factor_registry.yaml
+    - configs/tushare_tables.yaml
+    - src
+    - tests
+    - scripts
+    - pyproject.toml
+    - requirements-lock.txt
+  excludes:
+    - data_middle/_tmp
+    - data_middle/_provenance
+    - data_middle/strategy_research
+    - tests/__pycache__
+    - tests/.pytest_cache
+    - scripts/__pycache__
+    - src/core/strategy
+    - tests/test_stage3_contract.py
+    - .codebuddy
+  protected_scope_note: stage3_files_must_be_explicitly_excluded_in_the_generated_manifest

@@ -1,0 +1,320 @@
+{
+  "fixture_version": 1,
+  "calendar": {
+    "start": "20200302",
+    "stop": "20200605",
+    "calendar_dates": 96,
+    "trading_dates": 66,
+    "holidays": ["20200406", "20200501", "20200504", "20200505"],
+    "note": "20200502/20200503 are already weekends; the fictional holiday block is index 0-based, computed by generate.py, never hand-guessed."
+  },
+  "scenario_indices": {
+    "T": 15, "T_date": "20200323",
+    "ENTRY": 16, "ENTRY_date": "20200324",
+    "EXIT5": 21, "EXIT5_date": "20200331",
+    "EXIT5_RESUME": 23, "EXIT5_RESUME_date": "20200402",
+    "SA006_DELIST_IDX": 20, "SA006_delist_date": "20200330", "SA006_last_quote_date": "20200327",
+    "SA007_INDUSTRY_JOIN_IDX": 30, "SA007_in_date": "20200414",
+    "THIN_DAY": 35, "THIN_DAY_date": "20200421",
+    "T_END": 45, "T_END_date": "20200508", "T_END_plus1": 46, "T_END_plus1_date": "20200511",
+    "last_valid_index": 65
+  },
+  "forward_return_labels": {
+    "description": "ret_o2o_h at T=index15 for h in {1,5,10,20}; entry=open[T+1], planned exit=open[T+1+h]. Every stock's price is piecewise-constant (see README), so most returns are exactly 0% by construction; the point of each case is the exception flag, not the return magnitude.",
+    "SA001.SZ": {"entry_price": 100, "h1": {"ret": 0.0, "flag": null}, "h5": {"ret": 0.0, "flag": null}, "h10": {"ret": 0.0, "flag": null}, "h20": {"ret": 0.0, "flag": null}},
+    "SA002.SZ": {"entry_price": 100, "h1": {"ret": 0.0, "flag": null}, "h5": {"ret": 0.0, "flag": null}, "h10": {"ret": 0.0, "flag": null}, "h20": {"ret": 0.0, "flag": null}, "note": "identical to SA001.SZ at every date; rank-tie partner"},
+    "SA003.SZ": {
+      "note": "full-day suspension at index16 (the T+1 entry day itself) -> entry impossible for any h",
+      "h1": {"ret": null, "flag": "entry_blocked"}, "h5": {"ret": null, "flag": "entry_blocked"},
+      "h10": {"ret": null, "flag": "entry_blocked"}, "h20": {"ret": null, "flag": "entry_blocked"}
+    },
+    "SA004.SZ": {
+      "entry_price": 104.5,
+      "note": "index16 open==high==low==close==104.5==up_limit (one-word board); label computed normally, flag records the entry condition",
+      "h1": {"ret": 0.0, "flag": "entry_open_at_up_limit"}, "h5": {"ret": 0.0, "flag": "entry_open_at_up_limit"},
+      "h10": {"ret": 0.0, "flag": "entry_open_at_up_limit"}, "h20": {"ret": 0.0, "flag": "entry_open_at_up_limit"}
+    },
+    "SA005.SZ": {
+      "entry_price": 105,
+      "h1": {"exit_index": 17, "exit_price": 105, "ret": 0.0, "flag": null},
+      "h5": {"planned_exit_index": 21, "actual_exit_index": 23, "exit_price": 115, "ret": 0.09523809523809523, "ret_fraction": "2/21", "exit_delayed_days": 2, "flag": "exit_delayed_days"},
+      "h10": {"exit_index": 26, "exit_price": 115, "ret": 0.09523809523809523, "ret_fraction": "2/21", "flag": null, "note": "exit day index26 itself has a quote (resumption already happened at index23); no delay for this h"},
+      "h20": {"exit_index": 36, "exit_price": 115, "ret": 0.09523809523809523, "ret_fraction": "2/21", "flag": null}
+    },
+    "SA006.SZ": {
+      "entry_price": 110,
+      "h1": {"exit_index": 17, "exit_price": 110, "ret": 0.0, "flag": null, "note": "index17 < delist index20, normal exit"},
+      "h5": {"planned_exit_index": 21, "last_quote_index": 19, "last_quote_price": 110, "ret": 0.0, "flag": "delisted_in_window"},
+      "h10": {"planned_exit_index": 26, "last_quote_index": 19, "last_quote_price": 110, "ret": 0.0, "flag": "delisted_in_window"},
+      "h20": {"planned_exit_index": 36, "last_quote_index": 19, "last_quote_price": 110, "ret": 0.0, "flag": "delisted_in_window"}
+    },
+    "SA007.SZ": {"entry_price": 120, "h1": {"ret": 0.0, "flag": null}, "h5": {"ret": 0.0, "flag": null}, "h10": {"ret": 0.0, "flag": null}, "h20": {"ret": 0.0, "flag": null}},
+    "SA008.SZ": {"entry_price": 400, "h1": {"ret": 0.0, "flag": null}, "h5": {"ret": 0.0, "flag": null}, "h10": {"ret": 0.0, "flag": null}, "h20": {"ret": 0.0, "flag": null}}
+  },
+  "beyond_data_end": {
+    "description": "T_END=index45; entry=index46 (T_END+1), exit=index(46+h). This is a calendar-driven rule, identical for every stock in the cross-section; SA001.SZ is given as one concrete worked example, but it applies equally to SA002/03/04/05/07/08 still listed at index46 (SA006 already delisted, absent from this cross-section entirely, not a 'beyond_data_end' case).",
+    "SA001.SZ": {
+      "entry_index": 46, "entry_price": 100,
+      "h5": {"exit_index": 51, "exit_price": 100, "ret": 0.0, "flag": null, "note": "51 <= 65 (last valid index): within range, normal"},
+      "h20": {"exit_index": 66, "ret": null, "flag": "beyond_data_end", "note": "66 > 65 (last valid index): out of range"}
+    }
+  },
+  "benchmark": {
+    "description": "Step 4 self-built benchmark returns for the 000300.SH member subsample (daily_index_member, available from 20200309 = index5 with the 5-trading-day publication lag), plus the official-index calibration. Members at T, ret_1d at T+1; index16 is the ONLY non-zero self-built return in the fixture because SA004 jumps 95 -> 104.5 there with quotes on both days (ret_1d = 104.5/95-1 = 0.1 exactly).",
+    "index_weight_members": {"000300.SH": {"SA001.SZ": 5.0, "SA002.SZ": 3.0, "SA003.SZ": 1.0, "SA004.SZ": 4.0}},
+    "self_built_at_index16": {
+      "trade_date": "20200324", "member_date": "20200323",
+      "member_count": 4, "return_count": 3,
+      "equal_weight_ret": 0.03333333333333333,
+      "equal_weight_formula": "(0 + 0 + 0.1)/3 = 1/30; SA003.SZ ret_1d is NULL (suspended at index16) and is excluded from the mean, NOT counted as 0",
+      "circ_mv_weight_ret": 0.026977687626774847,
+      "circ_mv_weight_formula": "0.1*665000/(1000000+800000+665000) = 66500/2465000 = 133/4930; weights are circ_mv at member_date index15 (SA001=100*10000, SA002=100*8000, SA004=95*7000); SA003's circ_mv is excluded from the denominator because its ret_1d is NULL",
+      "flat_day_note": "at index17 SA003 still has ret_1d NULL (prev quote index15 != prev_trade_date index16), so return_count is again 3 and both benchmark returns are 0"
+    },
+    "calibration_000300": {
+      "description": "Official index_daily.csv covers exactly index15..18 (20200323..20200326) with closes 1000/1100/1100/1100 and pre_closes 1000/1000/1100/1100, so official returns are [0, 0.1, 0, 0]. Self-built equal-weight returns on the same dates are [0, 1/30, 0, 0] = official/3 exactly, hence Pearson == 1.",
+      "overlap_dates": ["20200323", "20200324", "20200325", "20200326"],
+      "official_returns": [0.0, 0.1, 0.0, 0.0],
+      "built_equal_weight_returns": [0.0, 0.03333333333333333, 0.0, 0.0],
+      "n": 4,
+      "pearson": 1.0,
+      "mean_diff": -0.016666666666666666,
+      "mean_diff_formula": "mean(built-official) = (1/30-0.1)/4 = -1/60",
+      "tracking_error_daily": 0.028867513459481287,
+      "tracking_error_formula": "ddof=0 variance of diff: E[diff^2]-mean^2 = (1/225)/4-(1/60)^2 = 1/900-1/3600 = 1/1200; te = sqrt(1/1200)",
+      "basis": "self_built_approximation_not_official_index"
+    }
+  },
+  "factors": {
+    "description": "Step 5 baseline factor expectations. Values are hand-computed from the fixture's closed-form data (adj_factor=1, total_mv in 万元 x 10000 -> CNY, amount x 1000 -> CNY). Absent lists mean NO factor_value row may exist (insufficient history / missing inputs), not a NULL row: only non-NULL values are published.",
+    "SA001_at_T": {
+      "trade_date": "20200323",
+      "values": {
+        "log_total_mv": 23.025850929940457,
+        "log_circ_mv": 23.025850929940457,
+        "ep_ttm": 0.05,
+        "sp_ttm": 0.2,
+        "cfp_ttm": 0.048,
+        "bp": 0.5,
+        "roa_ttm": 0.05555555555555556,
+        "roe_ttm": 0.1,
+        "rev_yoy_q": 1.0,
+        "np_yoy_q": 0.25
+      },
+      "formulas": {
+        "log_total_mv": "ln(100 * 10000 * 10000) = ln(1e10)",
+        "ep_ttm": "TTM net income 500000000 / 1e10 (Q4-2019 original visible at T)",
+        "sp_ttm": "TTM revenue 2000000000 / 1e10",
+        "cfp_ttm": "TTM operating cash flow 480000000 / 1e10",
+        "bp": "5000000000 / 1e10",
+        "roa_ttm": "500000000 / 9000000000",
+        "roe_ttm": "500000000 / 5000000000",
+        "rev_yoy_q": "Q4-2019 single-quarter revenue (2e9*0.45=900M) / Q4-2018 (1e9*0.45=450M) - 1 = 1.0",
+        "np_yoy_q": "Q4-2019 single-quarter net income (500M*0.45=225M) / Q4-2018 (400M*0.45=180M) - 1 = 0.25"
+      },
+      "absent": ["mom_12_1", "mom_6_1", "rev_20", "vol_20", "vol_60", "turn_20", "amihud_20", "log_amount_20"],
+      "absent_reason": "T=index15 has fewer than 20 quoted days of history (rolling windows) and far fewer than the 126/252 trading-day momentum lookbacks."
+    },
+    "SA001_at_T_plus_1": {
+      "trade_date": "20200324",
+      "values": {"ep_ttm": 0.052, "roe_ttm": 0.104, "rev_yoy_q": 1.0, "np_yoy_q": 0.3611111111111111},
+      "formulas": {
+        "ep_ttm": "520000000 / 1e10 once the same-day revision becomes visible at T+1",
+        "np_yoy_q": "(520M-275M)=245M single-quarter Q4-2019 / 180M - 1 = 0.36111...; revenue is unrevised so rev_yoy_q stays 1.0"
+      }
+    },
+    "SA001_at_index20": {
+      "trade_date": "20200330",
+      "values": {"rev_20": 0.0, "vol_20": 0.0, "turn_20": 2.0, "amihud_20": 0.0, "log_amount_20": 16.11809565095832},
+      "formulas": {
+        "rev_20": "100/100-1 over exactly 20 trading days",
+        "vol_20": "window index1..20 = 20 non-null ret_1d, all 0",
+        "log_amount_20": "ln(mean(amount=10000)*1000) = ln(1e7)"
+      }
+    },
+    "SA004_at_index35": {
+      "trade_date": "20200421",
+      "values": {"rev_20": 0.1, "vol_20": 0.02179449471770337, "amihud_20": 4.784688995215311e-10, "turn_20": 2.0},
+      "formulas": {
+        "rev_20": "104.5/95-1 = 0.1 exactly (index35 close vs index15 close)",
+        "vol_20": "window index16..35 has one ret_1d=0.1 and nineteen 0: mean 0.005, ddof=0 variance 0.01/20-0.005^2 = 0.000475, std = sqrt(0.000475)",
+        "amihud_20": "only index16 contributes: |0.1|/(10450*1000) averaged over 20 days = 0.1/(10450*1000*20)"
+      }
+    },
+    "SA003_at_index35_absent": {
+      "trade_date": "20200421",
+      "absent": ["turn_20", "vol_20"],
+      "reason": "SA003 has no quote at index16 and index35 inside the 20-day window: only 18 quoted days (17 non-null ret_1d after the resumption-day NULL), below min_periods=20. Suspended days must NOT be silently compressed out of the window."
+    },
+    "SA001_at_index65": {
+      "trade_date": "20200605",
+      "values": {"vol_60": 0.0},
+      "absent": ["mom_12_1", "mom_6_1"],
+      "reason": "66 fixture days can never satisfy the 126/252-day momentum lookbacks, even at the last date."
+    },
+    "vendor_comparison": {
+      "description": "pe_ttm=25.0 and pb=2.0 are constant for every fixture quote row. SA001's self-built ep_ttm at T is 0.05 vs vendor 1/25=0.04 (relative deviation 0.25 > 0.05 large-deviation threshold); bp 0.5 vs 1/2=0.5 (deviation 0)."
+    }
+  },
+  "industry_pit": {
+    "description": "Raw observable in_date/out_date facts from index_member_all.csv; exact Stage 2 PIT-status enum naming is decided in Step 2, not asserted here.",
+    "SA007.SZ": {"l1_code": "900001.SI", "in_date": "20200414", "out_date": null, "is_new": "Y",
+                 "note": "in_date (index30) falls strictly inside the fixture calendar (index0..65); at T=index15 (< in_date) SA007 has not yet joined this sector under the conservative 'snapshot applies from in_date onward' rule; from index30 onward it is a member"},
+    "SA008.SZ": {"l1_code": "900002.SI", "in_date": "20190101", "out_date": null, "is_new": "Y",
+                 "note": "in_date precedes the fixture's first trading date (index0=20200302); SA008 is already a member on every fixture date"}
+  },
+  "market_cap_unit_conversion": {
+    "description": "total_mv (and circ_mv) in stk_factor_pro.csv must equal close (CNY yuan) * total_share (10k shares) exactly, i.e. total_mv/circ_mv are in 10k-CNY units. Checked at T=index15 for every stock.",
+    "total_share": {"SA001.SZ": 10000, "SA002.SZ": 8000, "SA003.SZ": 6000, "SA004.SZ": 7000, "SA005.SZ": 9000, "SA006.SZ": 5000, "SA007.SZ": 4000, "SA008.SZ": 3000},
+    "close_at_T": {"SA001.SZ": 100, "SA002.SZ": 100, "SA003.SZ": 90, "SA004.SZ": 95, "SA005.SZ": 105, "SA006.SZ": 110, "SA007.SZ": 120, "SA008.SZ": 400},
+    "total_mv_at_T": {"SA001.SZ": 1000000, "SA002.SZ": 800000, "SA003.SZ": 540000, "SA004.SZ": 665000, "SA005.SZ": 945000, "SA006.SZ": 550000, "SA007.SZ": 480000, "SA008.SZ": 1200000}
+  },
+  "financial_pit": {
+    "description": "SA001.SZ only. available_date = first trading date strictly greater than ann_date (core.financial.available). Cumulative totals follow the 10/25/55/100% shape of each field's full-year value documented in README.md.",
+    "q4_original": {"ann_date": "20200320", "available_date": "20200323", "available_index": 15,
+                     "n_income_attr_p": 500000000, "revenue": 2000000000, "n_cashflow_act": 480000000,
+                     "oper_cost": 1400000000, "operate_profit": 600000000, "total_profit": 620000000,
+                     "end_date": "20191231", "update_flag": "0"},
+    "q4_revision": {"ann_date": "20200323", "available_date": "20200324", "available_index": 16,
+                     "n_income_attr_p": 520000000, "end_date": "20191231", "update_flag": "1",
+                     "note": "same end_date as q4_original; ann_date == T itself, so NOT visible at T (strict >), visible from T+1 onward"},
+    "at_T_index15": {"ttm_n_income_attr_p": 500000000, "note": "q4_revision not yet visible (ann_date==T is excluded by the strict-greater-than rule)"},
+    "at_T_plus1_index16": {"ttm_n_income_attr_p": 520000000, "note": "q4_revision now visible"},
+    "before_Q4_index14_or_earlier": {"ttm_n_income_attr_p": null, "note": "insufficient trailing quarters (no prior-fiscal-year Q4 in this fixture); Stage 1's own TTM-insufficient-history rule applies, not re-tested here"},
+    "point_in_time_balance_at_T": {
+      "available_date": "20200323", "available_index": 15,
+      "total_assets": 9000000000, "total_hldr_eqy_exc_min_int": 5000000000,
+      "total_liab": 4000000000, "total_cur_assets": 3000000000, "total_cur_liab": 1500000000,
+      "identity_check": "total_assets == total_liab + total_hldr_eqy_exc_min_int (9,000,000,000 == 4,000,000,000 + 5,000,000,000)"
+    },
+    "bp_worked_example": {
+      "formula": "total_hldr_eqy_exc_min_int / (total_mv_in_wan_yuan * 10000)", "at_index": 15,
+      "equity": 5000000000, "total_mv_wan_yuan": 1000000, "total_mv_yuan": 10000000000,
+      "bp": 0.5
+    },
+    "roe_ttm_worked_example": {
+      "formula": "ttm_n_income_attr_p / total_hldr_eqy_exc_min_int",
+      "at_T_index15": {"ttm_n_income_attr_p": 500000000, "equity": 5000000000, "roe_ttm": 0.1},
+      "at_T_plus1_index16": {"ttm_n_income_attr_p": 520000000, "equity": 5000000000, "roe_ttm": 0.104}
+    }
+  },
+  "insufficient_cross_section": {
+    "description": "At THIN_DAY=index35, SA003.SZ (suspended that day) and SA006.SZ (delisted since index20) both have no quote; the other 6 stocks do. With a test-overridden min_cross_section_count=7 (real config default is 300, irrelevant at this fixture's scale), 6 < 7 so this date must be excluded from any cross-sectional statistic and logged with its actual count.",
+    "valid_stock_count": 6,
+    "valid_stocks": ["SA001.SZ", "SA002.SZ", "SA004.SZ", "SA005.SZ", "SA007.SZ", "SA008.SZ"],
+    "excluded_stocks": {"SA003.SZ": "suspended", "SA006.SZ": "delisted"},
+    "test_override_min_cross_section_count": 7
+  },
+  "evaluation_formula_fixture": {
+    "description": "Independent, fully hand/calculator-computed numeric examples pinned to the exact formulas frozen in configs/factor_research.yaml. Not registered Step 5 factors; not a substitute for Step 7's real panel-based tests.",
+    "ic_rank_ic_with_ties": {
+      "description": "Toy 'mock factor' = close price at T=index15 for all 8 stocks, paired with ret_o2o_5 (h=5 forward return) at T. SA003.SZ excluded: entry_blocked -> null label, standard practice to drop null pairs before computing IC.",
+      "raw_pairs_8_stocks": {
+        "SA001.SZ": {"factor": 100, "ret5": 0.0}, "SA002.SZ": {"factor": 100, "ret5": 0.0},
+        "SA003.SZ": {"factor": 90, "ret5": null, "excluded": "entry_blocked"},
+        "SA004.SZ": {"factor": 95, "ret5": 0.0}, "SA005.SZ": {"factor": 105, "ret5": 0.09523809523809523},
+        "SA006.SZ": {"factor": 110, "ret5": 0.0}, "SA007.SZ": {"factor": 120, "ret5": 0.0},
+        "SA008.SZ": {"factor": 400, "ret5": 0.0}
+      },
+      "valid_pairs_n": 7,
+      "average_rank_of_factor_among_valid_7": {"SA004.SZ": 1.0, "SA001.SZ": 2.5, "SA002.SZ": 2.5, "SA005.SZ": 4.0, "SA006.SZ": 5.0, "SA007.SZ": 6.0, "SA008.SZ": 7.0},
+      "average_rank_of_ret5_among_valid_7": {"SA001.SZ": 3.5, "SA002.SZ": 3.5, "SA004.SZ": 3.5, "SA006.SZ": 3.5, "SA007.SZ": 3.5, "SA008.SZ": 3.5, "SA005.SZ": 7.0},
+      "pearson_ic": -0.16622158559867703,
+      "spearman_rank_ic": 0.0,
+      "note": "RankIC is exactly 0 here: 6 of 7 ret5 values tie at rank 3.5 (all zero returns), only SA005.SZ differs. This is intentionally a near-degenerate case chosen to exercise tie handling, not to illustrate predictive power."
+    },
+    "newey_west_t_closed_form": {
+      "series": [1, 2, 3, 4],
+      "horizon": 2,
+      "bartlett_lag": 1,
+      "mean": 2.5,
+      "gamma0": 1.25,
+      "gamma1": 0.3125,
+      "long_run_variance": 1.5625,
+      "expected_t": 4.0,
+      "formula": "LRV=gamma0+2*(1-1/2)*gamma1=1.5625; t=2.5/sqrt(LRV/4)=4"
+    },
+    "winsorize_standardize_on_8_stock_panel": {
+      "description": "Winsorize+standardize applied to the raw 8-value factor panel at T (all 8 stocks, including SA003.SZ which is still a valid factor observation even though its label is null).",
+      "raw": {"SA001.SZ": 100, "SA002.SZ": 100, "SA003.SZ": 90, "SA004.SZ": 95, "SA005.SZ": 105, "SA006.SZ": 110, "SA007.SZ": 120, "SA008.SZ": 400},
+      "median": 102.5, "mad": 7.5, "winsorize_k": 5,
+      "winsorize_bound": [65.0, 140.0],
+      "winsorized": {"SA001.SZ": 100, "SA002.SZ": 100, "SA003.SZ": 90, "SA004.SZ": 95, "SA005.SZ": 105, "SA006.SZ": 110, "SA007.SZ": 120, "SA008.SZ": 140},
+      "note_SA008": "400 > upper bound 140.0 -> capped to 140.0; this is the fixture's deliberate winsorize-outlier case",
+      "standardize_mean": 107.5, "standardize_std": 15.0,
+      "zscore": {"SA001.SZ": -0.5, "SA002.SZ": -0.5, "SA003.SZ": -1.1666666666666667, "SA004.SZ": -0.8333333333333334, "SA005.SZ": -0.16666666666666666, "SA006.SZ": 0.16666666666666666, "SA007.SZ": 0.8333333333333334, "SA008.SZ": 2.1666666666666665},
+      "zscore_exact_fraction_over_6": {"SA001.SZ": "-3/6", "SA002.SZ": "-3/6", "SA003.SZ": "-7/6", "SA004.SZ": "-5/6", "SA005.SZ": "-1/6", "SA006.SZ": "1/6", "SA007.SZ": "5/6", "SA008.SZ": "13/6"}
+    },
+    "neutralize_log_circ_mv_properties": {
+      "description": "Partial neutralization (log_circ_mv only; industry_dummy deferred to Step 6). Checked by OLS orthogonality property, not exact residual values, since circ_mv's natural log is not a hand-verifiable round number.",
+      "circ_mv_at_T": {"SA001.SZ": 1000000, "SA002.SZ": 800000, "SA003.SZ": 540000, "SA004.SZ": 665000, "SA005.SZ": 945000, "SA006.SZ": 550000, "SA007.SZ": 480000, "SA008.SZ": 1200000},
+      "required_properties_within_float_tolerance": [
+        "sum(residual) == 0",
+        "sum(residual * log(circ_mv)) == 0"
+      ]
+    },
+    "group_performance_standalone_series": {
+      "description": "Standalone 4-period return series, independent of the 8-stock entity panel (that panel's returns are too degenerate -- mostly flat -- for a useful Sharpe/drawdown illustration). periods_per_year = annualization_days / h = 252/20 = 12.6, matching an h=20 non-overlapping quantile regime.",
+      "periods_per_year": 12.6,
+      "group1_returns": [0.10, -0.05, 0.08, -0.03],
+      "group1": {
+        "cumulative_return": 0.0947420000000001,
+        "annualized_return": 0.3299401817106673,
+        "mean_period_return": 0.025,
+        "std_period_return": 0.06576473218982953,
+        "sharpe": 1.3493736504596914,
+        "wealth_path": [1.1, 1.045, 1.1286, 1.094742],
+        "drawdown_path": [0.0, -0.050000000000000155, 0.0, -0.029999999999999916],
+        "max_drawdown": -0.050000000000000155,
+        "calmar": 6.598803634213326,
+        "win_rate": 0.5,
+        "profit_loss_ratio": 2.25
+      },
+      "short_group_returns": [-0.02, 0.04, -0.01, 0.06],
+      "long_short_returns": [0.12, -0.09, 0.09, -0.09],
+      "long_short": {
+        "cumulative_return": 0.010944480000000256,
+        "annualized_return": 0.0348824249760924,
+        "mean_period_return": 0.007500000000000003,
+        "std_period_return": 0.09807522622966516,
+        "sharpe": 0.27144835701531855,
+        "wealth_path": [1.12, 1.0192, 1.1109280000000001, 1.0109444800000003],
+        "drawdown_path": [0.0, -0.08999999999999997, -0.008099999999999996, -0.09737099999999987],
+        "max_drawdown": -0.09737099999999987,
+        "calmar": 0.35824244360325397,
+        "win_rate": 0.5,
+        "profit_loss_ratio": 1.1666666666666667
+      }
+    }
+  },
+  "composition_formula_fixture": {
+    "rolling_icir_signed_weights": {
+      "base_date": "2020-01-02",
+      "trade_date": "2020-01-10",
+      "in_sample_end": "2020-01-31",
+      "lookback_observations": 3,
+      "min_periods": 2,
+      "component_A": {"signal_offsets": [0, 1], "exit_offsets": [2, 3], "rank_ics": [1.0, 3.0]},
+      "component_B": {"signal_offsets": [0, 1], "exit_offsets": [2, 3], "rank_ics": [-1.0, 1.0]},
+      "expected_A": {"mean": 2.0, "std": 1.0, "icir": 2.0, "weight": 1.0},
+      "expected_B": {"mean": 0.0, "std": 1.0, "icir": 0.0, "weight": 0.0},
+      "strict_boundary_trade_date": "2020-01-05",
+      "strict_boundary_expected_n_history": 1,
+      "strict_boundary_expected_weight": 0.0
+    },
+    "equal_weight_missing_component": {
+      "available_vol_20": 8.0,
+      "expected_direction": -1,
+      "absent_component": "rev_20",
+      "expected_composite_value": -8.0
+    },
+    "complete_linkage": {
+      "distance": "1-abs(mean_daily_cross_section_correlation)",
+      "threshold": 0.7,
+      "pairs_AB_AC_BC": [0.9, 0.1, 0.8],
+      "expected_clusters": [["A", "B"], ["C"]],
+      "after_AC_changes_to": -0.85,
+      "expected_clusters_after_change": [["A", "B", "C"]]
+    }
+  }
+}

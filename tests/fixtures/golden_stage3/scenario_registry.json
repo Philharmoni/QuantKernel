@@ -1,0 +1,75 @@
+{
+  "step1_only": true,
+  "production_automatic_threshold_downgrade": false,
+  "scenarios": [
+    {
+      "scenario_id": "signal",
+      "expected_json_key": "signal"
+    },
+    {
+      "scenario_id": "fixture_overrides",
+      "expected_json_key": "fixture_overrides"
+    },
+    {
+      "scenario_id": "buffer",
+      "expected_json_key": "buffer"
+    },
+    {
+      "scenario_id": "pit",
+      "expected_json_key": "pit"
+    },
+    {
+      "scenario_id": "execution",
+      "expected_json_key": "execution"
+    },
+    {
+      "scenario_id": "cash_fees",
+      "expected_json_key": "cash_fees"
+    },
+    {
+      "scenario_id": "accounting",
+      "expected_json_key": "accounting"
+    },
+    {
+      "scenario_id": "lifecycle",
+      "expected_json_key": "lifecycle"
+    },
+    {
+      "scenario_id": "constraints",
+      "expected_json_key": "constraints"
+    },
+    {
+      "scenario_id": "nav_reconciliation",
+      "expected_json_key": "nav_reconciliation"
+    },
+    {
+      "scenario_id": "non_overlapping_periods",
+      "expected_json_key": "non_overlapping_periods"
+    },
+    {
+      "scenario_id": "research_controls",
+      "expected_json_key": "research_controls"
+    },
+    {
+      "scenario_id": "permission_failures",
+      "expected_json_key": "permission_failures"
+    },
+    {
+      "scenario_id": "research_failures",
+      "expected_json_key": "research_failures"
+    },
+    {
+      "scenario_id": "implementation_scope",
+      "expected_json_key": "implementation_scope"
+    }
+  ],
+  "required_future_checks": [
+    "future_quote_perturbation",
+    "future_label_perturbation",
+    "future_financial_perturbation",
+    "future_industry_perturbation",
+    "future_member_perturbation",
+    "all_fixture_day_truncation",
+    "two_independent_business_content_runs"
+  ]
+}

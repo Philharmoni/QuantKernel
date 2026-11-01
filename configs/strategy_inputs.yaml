@@ -1,0 +1,81 @@
+version: 1
+mode: physical_in_sample_snapshot
+cutoff: '20241231'
+engine:
+  threads: 4
+  memory_limit: 8GB
+source_tables:
+  l1/daily_calendar:
+    key: [trade_date]
+    dates: [trade_date]
+  l1/daily_adjusted_price:
+    key: [trade_date, ts_code]
+    dates: [trade_date]
+    columns: [trade_date, ts_code, open, high, low, close, adj_factor, adjusted_open, adjusted_high, adjusted_low, adjusted_close, vol, amount, total_mv, circ_mv, turnover_rate, ret_1d, return_status, prev_quote_date]
+  l1/daily_stock_state:
+    key: [trade_date, ts_code]
+    dates: [trade_date]
+  l1/daily_trade_status:
+    key: [trade_date, ts_code]
+    dates: [trade_date]
+  l1/financial_available:
+    key: [source_table, record_id]
+    dates: [available_date]
+    cutoff_null: true
+    required_columns: [effective_ann_date, available_date, availability_status]
+  l1/quarterly_financial:
+    key: [source_table, ts_code, metric, end_date, available_date]
+    dates: [available_date]
+    cutoff_null: true
+  l1/ttm_financial:
+    key: [source_table, ts_code, metric, end_date, available_date]
+    dates: [available_date]
+    cutoff_null: true
+  l2/daily_research_universe:
+    key: [trade_date, ts_code, universe_id]
+    dates: [trade_date]
+  l3/daily_industry:
+    key: [trade_date, ts_code]
+    dates: [trade_date]
+  l3/daily_index_member:
+    key: [trade_date, index_code, con_code]
+    dates: [trade_date, available_date]
+  l3/daily_benchmark_return:
+    key: [trade_date, benchmark_id, method]
+    dates: [trade_date]
+    statistical_reference_only: true
+  l3/factor_value:
+    key: [trade_date, ts_code, factor_id]
+    dates: [trade_date]
+  l3/factor_processed:
+    key: [trade_date, ts_code, factor_id, universe_id, process_id]
+    dates: [trade_date]
+  l4/factor_composite_weight:
+    key: [trade_date, composite_id, component_id]
+    dates: [trade_date, last_signal_date, last_exit_date]
+    null_dates: [last_signal_date, last_exit_date]
+    enforce_realized_before_trade_date: true
+  l3/forward_return:
+    key: [trade_date, ts_code, label_id]
+    dates: [trade_date, entry_date, exit_date]
+    domain: research_only
+    keep_null_actual_dates: true
+    quarantine_cross_cutoff_labels: true
+units:
+  raw_price: CNY_per_share
+  adjusted_price: raw_price_times_adj_factor
+  market_cap: ten_thousand_CNY
+  amount_source: thousand_CNY
+  amount_to_cny_multiplier: 1000
+  amount_unit_status: inherited_research_assumption
+  vol_unit_status: not_validated
+  turnover_rate: percent_per_day
+  return: ratio
+units_are_not_new_source_verification: true
+capabilities:
+  real_share_account_ready: false
+  company_action_ledger: false
+  volume_unit_validated: false
+  industry_pit_history: limited
+  official_index_verification: suspended
+  limit_events_complete: false

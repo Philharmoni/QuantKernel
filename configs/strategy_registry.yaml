@@ -1,0 +1,61 @@
+registry_version: 1
+strategy_family: stage3_long_only_multifactor
+research_activity_id: stage3_r1_v1
+strategies:
+  - strategy_id: c0_three_module_fixed
+    version: 1
+    role: primary_candidate
+    eligible_for_promotion: true
+    definition: configs/strategy_research.yaml#signal
+    accounting_mode: adjusted_unit_proxy
+    execution_model: daily_open_proxy_v1
+    oos_formal_access_used: false
+  - strategy_id: composite_equal
+    version: 1
+    role: simple_composite_control
+    eligible_for_promotion: true
+    upstream_definition: configs/factor_registry.yaml#composite_equal
+    missing_component_renormalization: true
+    accounting_mode: adjusted_unit_proxy
+    execution_model: daily_open_proxy_v1
+    oos_formal_access_used: false
+  - strategy_id: c0_rebalance_5
+    version: 1
+    role: diagnostic_only
+    eligible_for_promotion: false
+    single_change_from: c0_three_module_fixed
+    rebalance_trading_day_interval: 5
+  - strategy_id: c0_vol_60
+    version: 1
+    role: diagnostic_only
+    eligible_for_promotion: false
+    single_change_from: c0_three_module_fixed
+    replacement: {vol_20: vol_60}
+  - strategy_id: c0_turn_20
+    version: 1
+    role: diagnostic_only
+    eligible_for_promotion: false
+    single_change_from: c0_three_module_fixed
+    replacement: {vol_20: turn_20}
+  - strategy_id: c0_strict_neutral
+    version: 1
+    role: diagnostic_only
+    eligible_for_promotion: false
+    single_change_from: c0_three_module_fixed
+    process_id: ws_z_industry_mv_neutral_z
+  - strategy_id: composite_icir_60
+    version: 1
+    role: diagnostic_only
+    eligible_for_promotion: false
+    upstream_definition: configs/factor_registry.yaml#composite_icir_60
+    online_label_access: false
+  - strategy_id: eligible_passive_net
+    version: 1
+    role: primary_benchmark_account
+    eligible_for_promotion: false
+    benchmark_weight: circ_mv
+  - strategy_id: common_support_passive_net
+    version: 1
+    role: matched_benchmark_account
+    eligible_for_promotion: false
+    benchmark_weight: circ_mv

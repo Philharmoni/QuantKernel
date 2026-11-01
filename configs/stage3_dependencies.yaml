@@ -1,0 +1,13 @@
+version: 1
+scope: step_0_and_step_1
+mode: reuse_existing_declared_dependencies_no_new_packages
+inherits:
+  project_manifest: pyproject.toml
+  lock_file: requirements-lock.txt
+solver:
+  package: null
+  version: null
+  reason: deterministic_projection_solver_is_not_implemented_until_step_4
+future_change:
+  requires_new_stage3_dependency_file: true
+  modify_stage1_stage2_dependency_identity: false

@@ -337,3 +337,50 @@ manifest 记录主键 `trade_date`、字段类型、配置指纹及 Parquet SHA-
 该标志衡量的是"无任何挂起/受限能力的完整阶段"，与上述规划准入是两个口径；
 挂起能力（退市整理期、历史换码映射等缺源项）作为已知边界带入第二阶段，
 不阻塞准入。
+
+## 二阶段 Step 2：财务白名单扩展（2026-10）
+
+按 `FACTOR_RESEARCH_STAGE2_PLAN.md` Step 2，为支撑 BP/ROE/杠杆等因子，受控扩展
+一阶段财务字段白名单并重跑一阶段回归门禁。
+
+### 配置变更
+
+`configs/data_middle_layer.yaml`：
+
+- `cumulative_fields.income_vip` 由 `[revenue, n_income_attr_p]` 扩展为
+  `[revenue, n_income_attr_p, oper_cost, operate_profit, total_profit]`，新增三个
+  字段纳入单季度/TTM 推导（真实季度/TTM 版本数相应增长）。
+- `point_in_time_fields.balancesheet_vip` 由 `[total_assets]` 扩展为
+  `[total_assets, total_hldr_eqy_exc_min_int, total_liab, total_cur_assets,
+  total_cur_liab]`。确认 `point_in_time_fields` 当前未被任何代码消费（仅用于配置
+  文档），`balancesheet_vip` 新增字段此前及扩展后均通过 `financial_available` 原始
+  透传可见，不参与季度/TTM 机械差分。
+
+### 夹具同步
+
+- `tests/fixtures/golden/`：`income_vip.csv` 新增 `oper_cost/operate_profit/
+  total_profit`（与 `revenue/n_income_attr_p` 取相同数值，保持既有人工预期不变）；
+  `balancesheet_vip.csv` 新增四个时点字段（与 `total_assets` 取相同数值）；
+  `test_only_explicit_cumulative_metrics_are_derived` 更新为核验扩展后的 6 项
+  累计指标集合。
+- `tests/fixtures/golden_stage2/`：SA001 场景已覆盖全部 7 个新字段的原始透传与
+  （income_vip 三个新字段的）TTM 全年边界验证，见该目录 `README.md`。
+
+### 回归结果
+
+- 全量单元测试 **185 项通过**。
+- 两次独立全量构建（复用 L0 画像，`--record-run whitelist_expansion_first` /
+  `whitelist_expansion_second`）均通过统一质量门禁：`financial_available`
+  738,036 行（`available` 727,489、`calendar_before_coverage` 10,538、
+  `invalid_announcement` 9）；`quarterly_financial` 1,094,677 行（`available`
+  990,642，余为缺指标/缺前期季度/冲突等明确原因）；`ttm_financial` 1,143,192 行
+  （`available` 832,759，`missing_quarter` 310,413，`ambiguous_quarter` 20）。
+- `compare_stage1_runs.py whitelist_expansion_first whitelist_expansion_second`：
+  **0 差异通过**。
+- 因子层待办（Step 5 基线因子库）现可直接消费 `oper_cost/operate_profit/
+  total_profit` 的季度/TTM 值与 `total_hldr_eqy_exc_min_int` 等时点余额字段，
+  解除 `bp`、`roe_ttm` 等因子的输入缺口。
+
+二阶段 Step 2 的行业 PIT 口径、指数成分每日化两项（二阶段自有新增模块，不涉及一阶段
+受控变更）的执行记录，以及后续 Step 3 及之后的记录，均见
+`docs/STAGE2_EXECUTION.md`。

@@ -62,9 +62,9 @@
     {"ts_code": "000001.SZ", "end_date": "20180630", "ann_date": "20190111", "available_date": "20190114", "invisible_on": "20190111", "revision": true}
   ],
   "financial_fields": {
-    "income_vip": {"cumulative": ["revenue", "n_income_attr_p"]},
+    "income_vip": {"cumulative": ["revenue", "n_income_attr_p", "oper_cost", "operate_profit", "total_profit"]},
     "cashflow_vip": {"cumulative": ["n_cashflow_act"]},
-    "balancesheet_vip": {"point_in_time": ["total_assets"], "automatic_differencing_allowed": false},
+    "balancesheet_vip": {"point_in_time": ["total_assets", "total_hldr_eqy_exc_min_int", "total_liab", "total_cur_assets", "total_cur_liab"], "automatic_differencing_allowed": false},
     "fina_indicator": {"ratio_or_per_share": ["eps"], "automatic_differencing_allowed": false}
   },
   "quarterly_and_ttm_cases": [

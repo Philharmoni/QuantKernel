@@ -128,15 +128,24 @@ def build():
         for end, announcement, cumulative, assets, eps, update in records:
             base = dict(ts_code=code, ann_date=announcement, f_ann_date=announcement,
                         end_date=end, report_type="1", update_flag=update)
-            incomes.append(dict(base, revenue=cumulative, n_income_attr_p=cumulative))
+            # oper_cost/operate_profit/total_profit (Step 2 whitelist addition) mirror
+            # the same cumulative shape as revenue/n_income_attr_p so every existing
+            # hand-calculated oracle in this fixture keeps applying unchanged.
+            incomes.append(dict(base, revenue=cumulative, n_income_attr_p=cumulative,
+                                oper_cost=cumulative, operate_profit=cumulative, total_profit=cumulative))
             cashflows.append(dict(base, n_cashflow_act=cumulative))
-            balancesheets.append(dict(base, total_assets=assets))
+            # total_hldr_eqy_exc_min_int/total_liab/total_cur_assets/total_cur_liab
+            # (Step 2 whitelist addition) mirror total_assets for the same reason.
+            balancesheets.append(dict(base, total_assets=assets, total_hldr_eqy_exc_min_int=assets,
+                                      total_liab=assets, total_cur_assets=assets, total_cur_liab=assets))
             indicators.append(dict(ts_code=code, ann_date=announcement, end_date=end,
                                    update_flag=update, eps=eps))
     base_fields = ("ts_code", "ann_date", "f_ann_date", "end_date", "report_type", "update_flag")
-    write_csv("income_vip.csv", base_fields + ("revenue", "n_income_attr_p"), incomes)
+    write_csv("income_vip.csv", base_fields + ("revenue", "n_income_attr_p", "oper_cost",
+                                               "operate_profit", "total_profit"), incomes)
     write_csv("cashflow_vip.csv", base_fields + ("n_cashflow_act",), cashflows)
-    write_csv("balancesheet_vip.csv", base_fields + ("total_assets",), balancesheets)
+    write_csv("balancesheet_vip.csv", base_fields + ("total_assets", "total_hldr_eqy_exc_min_int",
+                                                     "total_liab", "total_cur_assets", "total_cur_liab"), balancesheets)
     write_csv("fina_indicator.csv", ("ts_code", "ann_date", "end_date", "update_flag", "eps"), indicators)
     print(f"Rebuilt 11 artificial CSV files: {len(calendar)} calendar dates, {len(trading_dates)} trading dates, {len(CODES)} stocks")
 

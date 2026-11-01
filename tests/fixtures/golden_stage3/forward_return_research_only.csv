@@ -1,0 +1,5 @@
+trade_date,ts_code,label_id,horizon,entry_date,planned_exit_date,entry_price,exit_date,exit_price,ret,exception_flag,entry_blocked,entry_open_at_up_limit,exit_delayed_days,delisted_in_window,beyond_data_end
+2020-03-30,SA001.SZ,ret_o2o_1,1,2020-03-31,2020-04-01,10,2020-04-01,10,0,,False,False,0,False,False
+2020-03-30,SA001.SZ,ret_o2o_5,5,2020-03-31,2020-04-08,10,2020-04-08,10,0,,False,False,0,False,False
+2020-03-30,SA001.SZ,ret_o2o_20,20,2020-03-31,2020-04-29,10,2020-04-29,10,0,,False,False,0,False,False
+2024-12-31,SA001.SZ,ret_o2o_5,5,2025-01-02,2025-01-09,10,2025-01-09,11,0.1,permission_test_only,False,False,0,False,False

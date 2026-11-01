@@ -1,0 +1,3 @@
+index_code,industry_name,parent_code,level,industry_code,is_pub,src
+900001.SI,FixtureSectorA,0,L1,990001,1,SW2021
+900002.SI,FixtureSectorB,0,L1,990002,1,SW2021
