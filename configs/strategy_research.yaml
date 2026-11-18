@@ -1,10 +1,10 @@
-version: 1
+version: 2
 plan: STRATEGY_RESEARCH_STAGE3_PLAN.md
 plan_contract_sha256: f8f61900f46ec12f50b019d6696ae1d33ebf64c8310b85986787d0465355b3b0
 status: frozen_step_0
 approval_scope:
-  user_instruction: implement_step_0_step_1_physical_snapshot_step_2_then_step_3
-  approved_steps: [0, 1, 2, 3]
+  user_instruction: implement_r1_raw_share_quantity_constraints_without_changing_r2_or_oos_boundaries
+  approved_steps: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14]
   snapshot_preparation_read: true
   oos_access: false
   network_download: false
@@ -90,16 +90,39 @@ execution:
   daily_amount_is_upper_bound: true
   order_priority: [risk_exit, target_score, ts_code]
   timestamp_precision: day_assumed
+  quantity_constraint:
+    enabled: true
+    basis: raw_share_equivalent_at_unadjusted_open
+    rule_status: r1_research_assumption_not_r2_validated
+    full_position_odd_lot_sell: true
+    default:
+      rule_id: default_min100_step100
+      buy_min_shares: 100
+      buy_increment_shares: 100
+      sell_min_shares: 100
+      sell_increment_shares: 100
+    star:
+      prefixes: ['688']
+      rule_id: star_min200_step1
+      buy_min_shares: 200
+      buy_increment_shares: 1
+      sell_min_shares: 200
+      sell_increment_shares: 1
 
 portfolio:
   optimizer: deterministic_projected_equal_weight
-  solver: none_until_step_4
-  solver_version: none_until_step_4
+  solver: numpy_dykstra_halfspace_projection
+  solver_version: '1'
+  solver_tolerance: '1e-10'
+  solver_max_cycles: 2000
   dependency_manifest: configs/stage3_dependencies.yaml
   max_stock_weight: '0.02'
-  industry_active_limit: '0.05'
+  industry_active_limit: '0.10'
+  size_z_enabled: false
+  size_bucket_enabled: false
   size_z_active_limit: '0.30'
   size_bucket_active_limit: '0.10'
+  size_exposure_role: diagnostic_only
   target_one_way_turnover_limit: '0.20'
   order_adv_participation: '0.01'
   position_adv_limit: '0.20'
@@ -138,6 +161,7 @@ costs:
     impact_volatility_coefficient: '0.1'
   stress:
     commission_rate: '0.0005'
+    commission_minimum_cny_per_stock_direction_day: '10'
     transfer_fee_rate: '0.000004'
     sell_tax_rate: '0.002'
     impact_fixed_rate: '0.001'
@@ -153,7 +177,64 @@ benchmarks:
   apply_active_constraints_to_passive: false
   official_index_claim: suspended
 
+step6:
+  small_window: ['20190701', '20190930']
+  truncation_date: '20190830'
+  future_quote_multiplier: '1.25'
+  selection_rule: preexisting_engineering_smoke_window_not_return_selected
+
+step7:
+  candidate_ids_to_run: [c0_three_module_fixed]
+  diagnostic_ids_to_run: []
+  selection_scope: design_only
+  not_run_reason: missing_independent_step4_step5_execution_account
+
+step8:
+  candidate_id: c0_three_module_fixed
+  candidate_version: 2
+  design_run_id: step7_561ab6b2cdfd201a
+  preregistration: data_middle/strategy_research/preregistration/step8_c0_v2_quantity.json
+  supersedes_preregistration: data_middle/strategy_research/preregistration/step8_c0_v2_warmfix.json
+  engineering_change_reason: enforce_raw_share_quantity_constraints_while_preserving_candidate_economic_boundaries_and_r1_company_action_proxy
+  economic_boundaries:
+    minimum_annualized_return: '0.12'
+    maximum_drawdown_abs: '0.15'
+    minimum_information_ratio: '0.8'
+    maximum_stale_weight: '0.01'
+    maximum_non_tradable_weight: '0.01'
+
+step12:
+  scope: design_only
+  volatility_multiplier: '2'
+  capacity_participation:
+    capacity_0_1: '0.001'
+    capacity_0_5: '0.005'
+    capacity_2_0: '0.02'
+  universe_scope: benchmark_pool_only_not_new_c0_target
+
+step13:
+  scope: design_only
+  truncation_date: '20201231'
+  future_quote_multiplier: '1.25'
+  stale_half_days: 60
+  stale_zero_days: 120
+  delisting_zero_recovery: true
+  synthetic_pressure_cash_release: false
+
+step14:
+  scope: r1_closeout_only
+  required_steps: [3, 4, 5, 6, 7, 8, 9, 10, 12, 13]
+  new_backtest: false
+  confirmation_access: false
+  oos_access: false
+
 research_protocol:
+  backtest_convention:
+    default_tier: R1
+    accounting_mode: adjusted_unit_proxy
+    fill_model: proxy_not_observed
+    r2_requires_separate_quality_gate_and_authorization: true
+    live_trading: false
   design_period: ['20190701', '20211231']
   validation_period: ['20220101', '20231231']
   confirmation_period: ['20240101', '20241231']
@@ -169,6 +250,7 @@ research_protocol:
   max_diagnostics: 5
   trial_policy: append_only_all_attempts
   primary_candidate_id: c0_three_module_fixed
+  active_trial_id: c0_relax_industry_size_v2
   no_auto_champion_switch: true
   horizon_purge_trading_days: 20
   embargo_trading_days: 20
@@ -200,8 +282,50 @@ boundaries:
   index_member_publication_lag_trading_days: 5
 
 delivery:
-  stage: R1_signals_admitted
+  stage: R1_step14_closeout_complete
   root: data_middle/strategy_research
+  active_step4_run: step4_876b1164f4f036fb
+  step4_manifest: data_middle/strategy_research/runs/step4_876b1164f4f036fb/manifest.json
+  step4_verification: data_middle/strategy_research/runs/step4_876b1164f4f036fb/verification/step4_checks.json
+  can_enter_step5: true
+  active_step5_run: step5_9f475b1ee13824a8
+  step5_manifest: data_middle/strategy_research/runs/step5_9f475b1ee13824a8/manifest.json
+  step5_verification: data_middle/strategy_research/runs/step5_9f475b1ee13824a8/verification/step5_checks.json
+  can_enter_step6: true
+  active_step6_run: step6_062d042398ce6268
+  step6_manifest: data_middle/strategy_research/runs/step6_062d042398ce6268/manifest.json
+  step6_verification: data_middle/strategy_research/runs/step6_062d042398ce6268/verification/step6_checks.json
+  can_enter_step7: true
+  active_step7_run: step7_561ab6b2cdfd201a
+  step7_manifest: data_middle/strategy_research/runs/step7_561ab6b2cdfd201a/manifest.json
+  step7_verification: data_middle/strategy_research/runs/step7_561ab6b2cdfd201a/verification/step7_checks.json
+  can_enter_step8: true
+  active_step8_run: step8_60ed2e94ff2095d6
+  step8_manifest: data_middle/strategy_research/runs/step8_60ed2e94ff2095d6/manifest.json
+  step8_verification: data_middle/strategy_research/runs/step8_60ed2e94ff2095d6/verification/step8_checks.json
+  can_enter_step9: true
+  active_step9_run: step9_da7a206a49ef300f
+  step9_manifest: data_middle/strategy_research/runs/step9_da7a206a49ef300f/manifest.json
+  step9_verification: data_middle/strategy_research/runs/step9_da7a206a49ef300f/verification/step9_checks.json
+  can_enter_step10: true
+  active_step10_run: step10_19ee62909de9ff0c
+  step10_manifest: data_middle/strategy_research/runs/step10_19ee62909de9ff0c/manifest.json
+  step10_verification: data_middle/strategy_research/runs/step10_19ee62909de9ff0c/verification/step10_checks.json
+  r2_backtest_permitted: false
+  can_enter_step11: false
+  can_enter_step12_r1_sensitivity: true
+  active_step12_run: step12_ea36c33e2ad88b83
+  step12_manifest: data_middle/strategy_research/runs/step12_ea36c33e2ad88b83/manifest.json
+  step12_verification: data_middle/strategy_research/runs/step12_ea36c33e2ad88b83/verification/step12_checks.json
+  can_enter_step13: true
+  active_step13_run: step13_ca34e79a644edb68
+  step13_manifest: data_middle/strategy_research/runs/step13_ca34e79a644edb68/manifest.json
+  step13_verification: data_middle/strategy_research/runs/step13_ca34e79a644edb68/verification/step13_checks.json
+  can_enter_step14: true
+  active_step14_run: step14_1122601ce843ba32
+  step14_manifest: data_middle/strategy_research/runs/step14_1122601ce843ba32/manifest.json
+  step14_verification: data_middle/strategy_research/runs/step14_1122601ce843ba32/verification/step14_checks.json
+  r1_research_complete: true
   active_step3_run: step3_cd3844b567612ae5
   step3_manifest: data_middle/strategy_research/runs/step3_cd3844b567612ae5/manifest.json
   step3_verification: data_middle/strategy_research/runs/step3_cd3844b567612ae5/verification/step3_checks.json
@@ -209,7 +333,7 @@ delivery:
   active_input_bundle: in_sample_65efe5cadd765004
   input_bundle_manifest: data_middle/strategy_research/inputs/in_sample_65efe5cadd765004/manifest.json
   input_bundle_admission: data_middle/strategy_research/inputs/in_sample_65efe5cadd765004/admission.json
-  engineering_passed: false
+  engineering_passed: true
   economic_promoted: false
   real_share_account_ready: false
   live_ready: false

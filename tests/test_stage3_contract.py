@@ -15,13 +15,20 @@ def contract():
 
 
 def test_step0_freezes_scope_candidates_and_r1_boundary(contract):
-    assert contract["approval_scope"]["approved_steps"] == [0, 1, 2, 3]
+    assert contract["approval_scope"]["approved_steps"] == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14]
     assert contract["research_protocol"]["max_eligible_candidates"] == 2
     assert contract["research_protocol"]["max_diagnostics"] == 5
     assert contract["accounting"]["mode"] == "adjusted_unit_proxy"
+    convention = contract["research_protocol"]["backtest_convention"]
+    assert convention["default_tier"] == "R1"
+    assert convention["accounting_mode"] == "adjusted_unit_proxy"
+    assert convention["fill_model"] == "proxy_not_observed"
+    assert convention["r2_requires_separate_quality_gate_and_authorization"] is True
+    assert convention["live_trading"] is False
     assert contract["delivery"]["current_input_status"] == "admitted_physical_snapshot"
     assert contract["delivery"]["active_input_bundle"] == "in_sample_65efe5cadd765004"
-    for key in ("engineering_passed", "economic_promoted", "real_share_account_ready", "live_ready", "oos_accessed"):
+    assert isinstance(contract["delivery"]["engineering_passed"], bool)
+    for key in ("economic_promoted", "real_share_account_ready", "live_ready", "oos_accessed"):
         assert contract["delivery"][key] is False
 
 

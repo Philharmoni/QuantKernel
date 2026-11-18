@@ -1,9 +1,10 @@
-registry_version: 1
+registry_version: 2
 strategy_family: stage3_long_only_multifactor
-research_activity_id: stage3_r1_v1
+research_activity_id: stage3_r1_v2
 strategies:
   - strategy_id: c0_three_module_fixed
-    version: 1
+    version: 2
+    change_reason: user_approved_remove_size_hard_constraints_and_relax_industry_to_10pct
     role: primary_candidate
     eligible_for_promotion: true
     definition: configs/strategy_research.yaml#signal

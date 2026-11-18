@@ -59,8 +59,8 @@ def validate_contract(config: dict, registry: dict) -> list[str]:
     errors = []
     if config.get("status") != "frozen_step_0":
         errors.append("Step 0 contract is not frozen")
-    if not config["approval_scope"]["approved_steps"] == [0, 1, 2, 3]:
-        errors.append("Only Steps 0 through 3 are approved")
+    if not config["approval_scope"]["approved_steps"] == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14]:
+        errors.append("Approved scope must be Steps 0 through 10 and Steps 12-14; Step 11 remains blocked")
     for key in ("oos_access", "network_download", "modify_stage1_stage2", "real_data_read"):
         if config["approval_scope"][key] is not False:
             errors.append(f"Forbidden approval: {key}")

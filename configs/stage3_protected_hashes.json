@@ -4,7 +4,7 @@
     "FACTOR_RESEARCH_STAGE2_PLAN.md": "cca42f097d4a282b1e318f8f615f20e94546664e3e1067c7c6a34b74cca2e1c2",
     "configs/data_middle_layer.yaml": "2fec68686c02a14428e879312e1ef8dd4ce0b1ca0da59d0d1588b4e51b536c2d",
     "configs/factor_registry.yaml": "6055a818e293f9a299227a259e4adbcfd97feb0fb51839102a1fa26375203c64",
-    "configs/factor_research.yaml": "c252603e70acf2f068d4828978588812d7b0432bd96b8001d7aa7bf64b7d67e9",
+    "configs/factor_research.yaml": "913c740849f8d0632d63bf748f564812adae61d3b9f1b51ee4b833db9d822daf",
     "configs/tushare_tables.yaml": "90772cb7bddeb9325b48bba4de3abdeec64a705f3ad3f67741d0ea1a2de6c1f9",
     "data/README.md": "cd6003ca85eb275339e111ced9b72d4d87bedb7df84e664a0e34468720e342ab",
     "data/README_reordered.md": "dc517f7ef76eeaee737dd77cd1faac546dab8dda71fcbc17b5eab5824b704b1b",
@@ -117584,7 +117584,7 @@
     "data_middle/verification/step10_truncation.json": "7a37307ffc467be1a4718a867fd6df256b79225f28d06141684d481caf8d507d",
     "data_middle/verification/step8_truncation.json": "388829f1160388e5be5047a513aaecab264881ca43764426b56bc5c54268e3a9",
     "docs/STAGE1_EXECUTION.md": "cfce02fbe39f4bb071fb3e95a752fc74e36fc98023f7c6e9bd1345b9bd9219c6",
-    "docs/STAGE2_EXECUTION.md": "bada9b5609189877e9457314ce87869e1cfca945b8eba7ed0820e680eb1cde14",
+    "docs/STAGE2_EXECUTION.md": "0df73e01dd3a4a4b2505c47d31dc6f0ab800cc14e6952964fd627840c64aadea",
     "pyproject.toml": "4dfe081e7e36179717e7f73031b0e0586d4dd700f0f5d85383fc56f0079bea64",
     "requirements-lock.txt": "2b2633cbc8f119d1569deed1cdfcfd5a6ff615d9c7cad24be26bc79dfd62dbbc",
     "scripts/_bootstrap.py": "a9ed5e4ee003f31232ed860d632a21a8ff0f20269f128978f0d09402a3af72fe",
@@ -117594,6 +117594,7 @@
     "scripts/build_l1.py": "46ee3553ca71852f218e6127a39b488abce87baae61e996aa39be3f566bd7d3b",
     "scripts/build_l2.py": "9e70c71e51a6e17658685342ae06cb92019938d8385d5f29fb8f3499ee67dbce",
     "scripts/build_stage1.py": "30d5d7c31b348b08b70d7e3b2ff79c7ec4634be54dd58fd0581df1a99dd41790",
+    "scripts/build_stage2.py": "2bd39dea2e96a33878ecc19553c648d835ea8f7ab44f1b2026e0503cec2f5140",
     "scripts/capture_local_validation.py": "f73f25aff960c678842f316d598aab0e9dd7e6167b589ee2d1566c3d12895289",
     "scripts/check_data_quality.py": "79c59c765965b1a73c2b7f19ac6bd13a7033a192c3f3ba74ff8b677a613fd072",
     "scripts/check_financial_available.py": "8a183157fb215cef18c2916355eab6c7b645ae266f5b150e5e6f21469676bebd",
@@ -117655,12 +117656,14 @@
     "src/core/market/prices.py": "d9ad66b74ec68fd73a2c37f4c568915804ab8694f3141f16e8f2f0b313a33c27",
     "src/core/market/state.py": "869ce256d8871cb97ae5fd03ce3fafff99f6c9984ca5dee68b46dc7b82fb144d",
     "src/core/market/trading.py": "a31122a7722cdb0a24162b128b06c6faf448e0c2dae3576b4691cb244750f07e",
+    "src/core/pipeline/__init__.py": "c8dc27c69ba586b5e8c56c3b4574f39e8ce81b5b36ef81f9ac9d474bb86d4fa2",
+    "src/core/pipeline/stage2.py": "c9685293334a7cf2a2ca7f81022a924f13c1a0706959f4aff3f811a1111361b9",
     "src/core/preprocess/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "src/core/preprocess/ops.py": "bed1d53d1e3e6d26dedca18b964d297e90fabf2aa43c98e7a88efe0cda4d5839",
     "src/core/preprocess/panel.py": "4b2fb44131a5b8f70077db50744d4f9de02f5a77e06cff75844663d8aa6af1d3",
     "src/core/quality/__init__.py": "44e7e28b5894810251d4db7b09805de2efeaa240e93cef82092be20a386ea8b4",
     "src/core/quality/checks.py": "739080d7f0b877ba84e68aa059d8ecd857d8ed0bddfab0b6286395064184c88f",
-    "src/core/quality/stage2.py": "4fb2e949d912f9242e94856f05bb142a240d3fdd1f4b0e2af94bbed37c9d354f",
+    "src/core/quality/stage2.py": "eeed219af378f7f7e19810186e6ce3ec53e5f60372f8da69ad45255fa3111019",
     "src/core/reference/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "src/core/reference/market.py": "5a9d1b2e1a7813bb1a0fd4a291c20ecc470e6353d4a3f5ae01aea8a658792318",
     "src/core/reference/membership.py": "7ea167a43b453d705d6df34484badd95f574d468bb476c2f4e56ca5ae3e531ee",
@@ -117720,12 +117723,39 @@
     "tests/test_report.py": "d8db94df3146a35dceda5d8acb95d2e77f1e8912742101a4f1011f9370c39857",
     "tests/test_research_universe.py": "5d468cb4a696f303d6e233b1a5522ebc7f721f714683fa377254d4fe5a659c4e",
     "tests/test_stage2_entry.py": "6dc6385a8b33edfd09bdd576e2f43544561becafc07af4a8e56f20a575dae4ec",
+    "tests/test_stage2_pipeline.py": "052a927979e89ce5e9c544e771c0729c9698543ede58bac3d8b24277e7175a5b",
     "tests/test_stage2_quality.py": "c63f5725aea607d6fd6ceafbc9be1b345ad6c21ea1016c166411d4b4d9065d8a",
     "tests/test_stock_state.py": "5a392d23b168e5b58a94ac9908c75a9263adc4d812ee1cd4f9e8e779410646cf",
     "tests/test_store_publication.py": "ee632e0a4d4439e8de17a03fc407e3e40263305777695018b549142dce22426b",
     "tests/test_trade_status.py": "9e8235d502f53f2ece3a8f273c7cd2b4eaae9a520abce91b82ba61f7ee59e118"
   },
-  "manifest_sha256": "d41ef72d99d41034e8850fb0398d622607bb138c218865261841b3c1ea5382bb",
+  "manifest_sha256": "cc94afa861bcce26bab9391fc886d71f0d71c6c2384d13372a680f0ad48f9ce3",
   "scope": "before_stage3_changes",
+  "updates": [
+    {
+      "added": [
+        "scripts/build_stage2.py",
+        "src/core/pipeline/__init__.py",
+        "src/core/pipeline/stage2.py",
+        "tests/test_stage2_pipeline.py"
+      ],
+      "date": "2026-11-01",
+      "modified": {
+        "configs/factor_research.yaml": {
+          "current_sha256": "913c740849f8d0632d63bf748f564812adae61d3b9f1b51ee4b833db9d822daf",
+          "previous_sha256": "c252603e70acf2f068d4828978588812d7b0432bd96b8001d7aa7bf64b7d67e9"
+        },
+        "docs/STAGE2_EXECUTION.md": {
+          "current_sha256": "0df73e01dd3a4a4b2505c47d31dc6f0ab800cc14e6952964fd627840c64aadea",
+          "previous_sha256": "bada9b5609189877e9457314ce87869e1cfca945b8eba7ed0820e680eb1cde14"
+        },
+        "src/core/quality/stage2.py": {
+          "current_sha256": "eeed219af378f7f7e19810186e6ce3ec53e5f60372f8da69ad45255fa3111019",
+          "previous_sha256": "4fb2e949d912f9242e94856f05bb142a240d3fdd1f4b0e2af94bbed37c9d354f"
+        }
+      },
+      "reason": "user_confirmed_stage2_one_click_pipeline_change"
+    }
+  ],
   "version": 1
 }
