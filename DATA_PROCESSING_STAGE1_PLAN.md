@@ -31,7 +31,10 @@
 ```text
 QuantKernel/
   data/                    # 本地全量 TuShare 数据，禁止提交
-  data_middle/             # 数据处理中间层输出，禁止提交
+  data_middle/             # 仅 Stage 1 的 L0/L1/L2 数据处理中间层输出，禁止提交
+  factor_research/         # Stage 2 因子研究产物及其验证证据，禁止提交
+  strategy_research/       # Stage 3 策略研究产物及其验证证据，禁止提交
+  verification/            # Stage 1 与框架级验证证据，禁止提交
   configs/
     paths.yaml
     tushare_tables.yaml
@@ -113,10 +116,10 @@ L2 不做因子、不做策略，只生成通用研究样本空间：
 
 实施内容：
 
-- 建立路径配置，明确 `DATA_ROOT`、`MIDDLE_ROOT`。
+- 建立路径配置，明确 `DATA_ROOT`、`MIDDLE_ROOT`、`FACTOR_RESEARCH_ROOT`、`STRATEGY_RESEARCH_ROOT`、`VERIFICATION_ROOT`。
 - 本地 `DATA_ROOT` 默认指向 `./data`。
 - 服务器 `DATA_ROOT` 可指向 `/data/tushare_data` 或服务器项目内 `./data`。
-- 配置 `.gitignore`，排除 `data/`、`data_middle/`、大体量 Parquet、DuckDB 文件和日志。
+- 配置 `.gitignore`，排除 `data/`、`data_middle/`、`factor_research/`、`strategy_research/`、`verification/`、大体量 Parquet、DuckDB 文件和日志。
 
 验证标准：
 

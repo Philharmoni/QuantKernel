@@ -99,14 +99,16 @@
 QuantKernel/
   configs/
     factor_research.yaml        # 时点、区间、样本、h、分层、预处理等研究约定
-    factor_registry.yaml        # 因子定义登记（id、版本、类别、输入、窗口、方向、单位、起效日）
+    factor_registry.yaml        # 以 factor_id 为顶层键，登记版本、输入、窗口、方向、PIT 等定义
   scripts/
+    run_factor_experiment.py    # 单因子计算与实验证据归档
+    evaluate_factor.py          # 隔离评价一个已计算实验
+    promote_factor.py           # 审核通过后追加正式注册表
+    build_stage2.py             # 已入库因子的正式端到端重建与运行记录
     check_stage2_entry.py       # 二阶段准入：核验一阶段 manifest 与质量报告
-    build_l3.py                 # 辅助数据、标签、因子原值、预处理值
-    evaluate_factors.py         # 单因子评价、相关性、合成
-    check_factor_quality.py     # 二阶段统一质量门禁
-    build_stage2.py             # 端到端构建 + 运行记录
-    compare_stage2_runs.py      # 两次构建语义比对
+    check_stage2_quality.py     # 二阶段统一质量门禁
+  research/factors/<factor_id>/
+    compute.py                  # 每个因子的唯一计算源码与实验 SPEC
   src/core/
     industry/                   # 行业归属（PIT 口径标注）
     benchmark/                  # 自建基准收益
@@ -115,10 +117,15 @@ QuantKernel/
     preprocess/                 # 去极值、标准化、中性化
     evaluation/                 # IC、分层、衰减、换手、NW t 值
   tests/fixtures/golden_stage2/ # 二阶段人工黄金数据与预期
-  data_middle/
+  data_middle/                  # 只读消费 Stage 1 的 L0/L1/L2 上游产物
+  factor_research/
+    l1/                         # Stage 2 构建的指数参考表
     l3/                         # 因子输入与标签层
     l4/                         # 因子评价层
+    verification/               # 因子研究准入、截断、质量门禁和运行证据
 ```
+
+逐因子明细表使用 Hive 风格 `factor_id=<factor_id>/part-00000.parquet` 作为唯一正式存储，例如 `l3/factor_value/factor_id=ep_ttm/part-00000.parquet`；读取时通过 DuckDB 恢复为逻辑长表。跨因子汇总与相关性表不拆分。每个分区的路径、行数与 SHA-256 记录在该表 `manifest.json` 中。
 
 ## 6. 数据层划分
 
@@ -317,7 +324,7 @@ QuantKernel/
 - 配置：`configs/factor_research.yaml`、`configs/factor_registry.yaml`、一阶段白名单扩展变更记录。
 - 代码：`src/core/{industry,benchmark,label,factor,preprocess,evaluation}/`、第 5 节脚本。
 - 测试：二阶段黄金数据及标签、因子、截断不变性、预处理、评价、重复性测试。
-- 数据：`data_middle/l3/`、`data_middle/l4/` 全部产物及 manifest。
+- 数据：`factor_research/l1/`、`factor_research/l3/`、`factor_research/l4/` 全部产物及 manifest。
 - 文档：`docs/STAGE2_EXECUTION.md`、每因子评价报告、汇总报告。
 
 ## 9. 第二阶段暂不实现内容

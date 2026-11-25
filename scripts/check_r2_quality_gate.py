@@ -5,22 +5,23 @@ import _bootstrap  # noqa: F401
 from core.config.paths import PROJECT_ROOT
 from core.strategy.contract import file_sha256, load_stage3_contract
 from core.strategy.r2_quality_build import R2QualityBuilder, default_step10_run_id, publish_r2_quality
+from core.strategy.verification import file_repeat_mismatches, repeat_metadata, resolve_repeat
+from core.quality.verification import verification_mode
 
 
 def main():
+    mode = verification_mode()
     config = load_stage3_contract()["config"]
-    root = PROJECT_ROOT / "data_middle/strategy_research"
+    root = PROJECT_ROOT / config["delivery"]["root"]
     run_id = default_step10_run_id()
     run_root = root / "runs" / run_id
     manifest = json.loads((run_root / "manifest.json").read_text(encoding="utf-8"))
     repeat_root = root / "verification" / (run_id + "_repeat")
-    if repeat_root.exists():
-        repeat = json.loads((repeat_root / "manifest.json").read_text(encoding="utf-8"))
-    else:
-        repeat = publish_r2_quality(R2QualityBuilder(config, PROJECT_ROOT), repeat_root, repeat_root.name)
+    repeat, repeat_status = resolve_repeat(repeat_root, lambda: publish_r2_quality(
+        R2QualityBuilder(config, PROJECT_ROOT), repeat_root, repeat_root.name), mode)
     gate = json.loads((run_root / "evidence/r2_quality_gate.json").read_text(encoding="utf-8"))
     observations = {
-        "repeat_file_mismatches": [path for path, sha in manifest["files"].items() if repeat["files"].get(path) != sha],
+        "repeat_file_mismatches": file_repeat_mismatches(manifest, repeat),
         "required_blockers_missing": sorted({"champion_available", "company_action_ledger", "volume_units_validated"} - set(gate["blockers"])),
         "r2_permission_mismatch": int(gate["passed"] or gate["r2_backtest_permitted"] or gate["can_enter_step11"]
             or manifest["r2_backtest_permitted"] or manifest["can_enter_step11"]),
@@ -33,7 +34,8 @@ def main():
     result = {"passed": not failures, "step": 10, "run_id": run_id, "failures": failures,
         "observations": observations, "quality_gate_executed": True,
         "r2_quality_gate_passed": False, "r2_backtest_permitted": False, "can_enter_step11": False,
-        "can_enter_step12_r1_sensitivity": not failures, "real_share_account_ready": False, "live_ready": False}
+        "can_enter_step12_r1_sensitivity": not failures, "real_share_account_ready": False, "live_ready": False,
+        **repeat_metadata(mode, repeat_status)}
     target = run_root / "verification/step10_checks.json"
     target.parent.mkdir(exist_ok=True)
     target.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")

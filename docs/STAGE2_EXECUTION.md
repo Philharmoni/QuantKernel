@@ -4,6 +4,31 @@
 一阶段规划准入记录见 `docs/STAGE1_EXECUTION.md`（含"准入轮"与二阶段 Step 2
 中属于一阶段受控变更的财务白名单扩展部分）。
 
+> 2026-11-19 目录重构：现行 Stage 2 数据与验证证据统一位于 `factor_research/`。下文历史记录中的 `data_middle/l3/`、`data_middle/l4/`、`data_middle/verification/` 是执行当时的位置。
+
+## 按因子分区的正式存储（2026-11-20）
+
+- 六张逐因子明细表采用 `factor_id=<factor_id>/part-00000.parquet`：`factor_value`、`factor_processed`、`factor_composite_value`、`factor_ic_daily`、`factor_ic_realized`、`factor_quantile_return`。根目录不再保存合并的 `part-00000.parquet`，分区文件是唯一正式物理副本。
+- 分区文件省略 `factor_id` 列，由 Hive 路径恢复；`Store.output_relation()` 使用 `hive_partitioning=true` 将其读成一张逻辑长表。`factor_summary` 与 `factor_correlation` 等跨因子汇总仍保持单文件。
+- manifest 记录每个分区的路径、行数和 SHA-256，并以分区哈希映射计算数据集总哈希；完整性检查同时拒绝缺失分区、额外分区和遗留根文件。迁移通过临时目录、备份和原子替换完成。
+- 当时由一次性工具 `scripts/migrate_factor_storage.py` 完成迁移及幂等复验，验收证据为 `factor_research/verification/factor_partition_migration.json`。下游 manifest 和报告来源仅刷新存储血缘，不改变研究内容；迁移完成后该工具已删除，证据继续保留。
+- 迁移后六表行数与主键唯一性通过，Stage 3 输入快照重建成功，Stage 2 质量门 `passed=true`，全量回归 336 项通过。
+
+## 三动作单因子实验框架（2026-11-21）
+
+- 18 个基础因子的实现已拆分到 `research/factors/<factor_id>/compute.py`；`core.factor.baseline` 仅保留正式批处理分发，不再是第二份公式库。复合因子、预处理、评价和报告核心继续复用。
+- 新实验执行 `scripts/run_factor_experiment.py`，自动生成 `experiment.yaml`、代码与配置快照、`factor_values.parquet`、manifest 和截断证据。新因子可在源码 `SPEC` 中声明契约，无需预先进入正式库。
+- `scripts/evaluate_factor.py` 接受上述 Parquet 路径，在实验自己的 `evaluation/` 下发布 L3/L4、`summary.json` 和 `report.md`。正式市值、标签、行业和指数数据通过只读硬链接或 relation 复用，不覆盖正式产物。
+- `scripts/promote_factor.py` 根据 `configs/factor_admission.yaml` 检查技术证据、主 horizon 观测数、可选绩效/相关性阈值及显式 `--approve`，以保留原注释的追加方式原子更新正式注册表。首版拒绝覆盖已有因子版本。
+- 2026-11-23 注册表简化为以 `factor_id` 为顶层键的映射，删除 `registry_version`、`factors` 列表层和条目内重复的 `factor_id`，因子之间保留一个空行；短嵌套字段使用单行写法。统一加载器兼容旧实验快照，并在内存中恢复标准因子契约。
+- 2026-11-24 `evaluate_factor.py --universe <custom_id>` 支持在 Stage 1 自定义股票池内重新去极值、标准化、中性化并评价。结果写入实验的 `evaluations/<universe_id>/`，默认 `evaluation/`、正式 L3/L4 和入库证据不变；评价 manifest 绑定自定义配置和成员哈希。自定义分支暂不计算正式 peer 相关性，覆盖率报告仍是全市场参考，池内截面情况以 processing report 为准。
+- 真实 `rev_20/exp_8e4fbbc790206bb7` 已用 2024-01 每日流通市值前 4000 池 `circ_mv_top4000_smoke_v1` 完成自定义评价：88,000 条成员记录、22 个评价日，技术检查通过，未访问 OOS。
+- 真实旧因子 `rev_20` 与 `log_total_mv` 均完成 2024-01 有界计算和评价；与正式旧产物逐行比较均为 0 差异。两者实验只访问样本内，19 个正式 peer 的相关性结果完整。
+- 冗余旧 CLI `evaluate_factors.py`、`build_factor_reports.py`、`build_factor_composites.py` 和一次性迁移工具 `migrate_factor_storage.py` 均已删除；核心函数、正式复合因子构建和迁移验收证据仍保留。Stage 2 日常入口收敛为三个实验脚本加 `build_stage2.py`、`check_stage2_entry.py`、`check_stage2_quality.py`。
+- 实验计算不再暴露无实际行为差异的 `fast/standard/audit` 开关；传入 `end` 时仍强制执行截断重算。正式 `build_stage2.py` 和统一质量门的验证分级保持不变。
+- 真实验收恢复并保持了旧版的精确数值路径：Amihud 使用 `DECIMAL(38,24)` 滚动求和，波动率保持原来的最终 DOUBLE 运算顺序。2024-12-31 的 18 个基础因子截断比较为 94,386 个值、0 差异；含两个复合因子的统一门比较 104,270 个值、0 差异。
+- 全量 346 项测试、Stage 2 准入、路径检查、正式流水线 standard dry-run 和真实 standard 质量门均通过；质量门 `failure_count=0`，正式 OOS 因子仍为空。当前 Stage 3 保护范围补充 `research/factors`，防止已入库公式源码脱离哈希保护。
+
 ## Step 0：二阶段工程约定与一阶段契约（2026-10）
 
 - `configs/factor_research.yaml` 落定方案第 4 节约定。
@@ -370,8 +395,9 @@
   `evaluate_factors` 新增按因子 ID 合并选项，避免增量构建覆盖 18 个基线因子；
   基线 `build_factor_values` 默认明确排除合成类别，合成截断会同时重算 IC、
   权重和值，而不是只检查最后平均公式。
-- `scripts/build_factor_composites.py` 提供相关性→合成→预处理→可选截断的
-  顺序入口；`composition_report.json` 记录合成配置 SHA-256。
+- 当时由 `scripts/build_factor_composites.py` 提供相关性→合成→预处理→可选截断的
+  顺序入口；该独立包装现已删除，正式构建统一由 `build_stage2.py` 执行。
+  `composition_report.json` 继续记录合成配置 SHA-256。
 
 ### 验证结果
 
@@ -510,8 +536,9 @@
   已验收产物到 Step 10 的完整、失败即停编排。它包含 Stage 2 额外的
   `index_member_available`、`index_weight_available`、`index_daily_available`
   L1 参考表构建，因此新设备只需先完成 Stage 1，不需要手工补跑隐藏步骤。
-- 前置条件：Python 依赖已安装、原始 `DATA_ROOT` 已挂载、`MIDDLE_ROOT` 可写、
-  Stage 1 一键构建及质量门禁已通过。原始数据与中间数据目录必须分离。
+- 前置条件：Python 依赖已安装、原始 `DATA_ROOT` 已挂载、`MIDDLE_ROOT` 与
+  `FACTOR_RESEARCH_ROOT` 可写且互不重叠，Stage 1 一键构建及质量门禁已通过。
+  原始数据与所有输出目录必须分离。
 - 仅查看执行计划（不读写数据）：
   ```bash
   conda run -n quantkernel python scripts/build_stage2.py --dry-run
@@ -526,9 +553,9 @@
   原始数据未变更检查→20 因子统一截断与 Step 10 门禁。
 - 不执行联网下载，不访问锁定样本外。合成预处理合并后会重新发布相关性与
   合成产物以绑定当前上游哈希，避免新设备因历史增量血缘而无法通过最终门禁。
-- 运行状态写入 `verification/stage2_build_status.json`，失败时记录具体阶段；
-  成功记录写入 `verification/runs/stage2_latest.json`，原始数据独立性证明写入
-  `verification/stage2_raw_unchanged.json`。旧质量通过状态在重建开始时即改为
+- 运行状态写入 `factor_research/verification/stage2_build_status.json`，失败时记录具体阶段；
+  成功记录写入 `factor_research/verification/runs/stage2_latest.json`，原始数据独立性证明写入
+  `factor_research/verification/stage2_raw_unchanged.json`。旧质量通过状态在重建开始时即改为
   `rebuilding`，不会与本轮结果混淆。
 - 默认重跑发布门禁与当前文件完整性；如需额外全表重复/空主键扫描，使用
   `--deep-primary-keys`。`--record-run NAME` 可保存独立运行记录。

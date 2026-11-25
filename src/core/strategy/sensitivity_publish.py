@@ -28,7 +28,7 @@ def default_step12_run_id(project_root=PROJECT_ROOT, use_active=True):
         "code": {name: file_sha256(Path(__file__).with_name(name)) for name in
                  ("sensitivity.py", "sensitivity_build.py", "sensitivity_publish.py", "r1_engine.py",
                   "execution.py", "accounting.py", "research.py")}}
-    return "step12_" + canonical_hash(identity)[:16]
+    return config["delivery"]["active_run_group"] + "/step12"
 
 
 def publish_step12(builder, output_root, run_id):
@@ -66,7 +66,8 @@ def publish_step12(builder, output_root, run_id):
             manifests[table] = {"path": str(target.relative_to(staging)), "primary_key": key,
                                 "rows": count, "schema": schema, "sha256": file_sha256(target)}
             (target.parent / "manifest.json").write_text(json.dumps(manifests[table], indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        manifest = {"step": 12, "run_id": run_id, "status": "complete", "period_id": "design",
+        manifest = {"step": 12, "run_id": run_id,
+            "run_hash": "step12_" + canonical_hash(manifests)[:16], "status": "complete", "period_id": "design",
             "design_period": builder.config["research_protocol"]["design_period"],
             "input_bundle": builder.inputs.manifest["bundle_id"], "accounting_mode": "adjusted_unit_proxy",
             "economic_promoted": False, "r2_backtest_permitted": False, "validation_seen": False,

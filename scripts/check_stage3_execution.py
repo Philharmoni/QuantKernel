@@ -5,22 +5,23 @@ import _bootstrap  # noqa: F401
 from core.config.paths import PROJECT_ROOT
 from core.strategy.contract import file_sha256, load_stage3_contract
 from core.strategy.execution_build import TABLE_KEYS, Step5Builder, default_step5_run_id, publish_step5
+from core.strategy.verification import repeat_metadata, resolve_repeat, table_repeat_mismatches
+from core.quality.verification import verification_mode
 from core.strategy.inputs import SnapshotInputs
 
 
 def main():
+    mode = verification_mode()
     config = load_stage3_contract()["config"]
-    root = PROJECT_ROOT / "data_middle/strategy_research"
+    root = PROJECT_ROOT / config["delivery"]["root"]
     run_id = default_step5_run_id()
     run_root = root / "runs" / run_id
     manifest = json.loads((run_root / "manifest.json").read_text(encoding="utf-8"))
     repeat_root = root / "verification" / (run_id + "_repeat")
-    with SnapshotInputs(root / "inputs" / config["delivery"]["active_input_bundle"]) as inputs:
-        if repeat_root.exists():
-            repeat = json.loads((repeat_root / "manifest.json").read_text(encoding="utf-8"))
-        else:
-            repeat = publish_step5(Step5Builder(inputs, root / "runs" / config["delivery"]["active_step4_run"], config),
-                                   repeat_root, repeat_root.name)
+    with SnapshotInputs(root / "inputs" / config["delivery"]["active_input_bundle"], verification=mode) as inputs:
+        repeat, repeat_status = resolve_repeat(repeat_root, lambda: publish_step5(
+            Step5Builder(inputs, root / "runs" / config["delivery"]["active_step4_run"], config),
+            repeat_root, repeat_root.name), mode)
         db = inputs.db
         nav = f"read_parquet('{run_root}/l5/nav_daily/part-00000.parquet')"
         cash = f"read_parquet('{run_root}/l5/cash_ledger/part-00000.parquet')"
@@ -40,8 +41,7 @@ def main():
             SELECT max(abs(requested_notional_cny-filled_notional_cny-remaining_notional_cny)) FROM latest""").fetchone()[0]
         observations = {
             "table_rows": {name: entry["rows"] for name, entry in manifest["tables"].items()},
-            "repeat_hash_mismatches": [table for table in TABLE_KEYS
-                if manifest["tables"][table]["sha256"] != repeat["tables"][table]["sha256"]],
+            "repeat_hash_mismatches": table_repeat_mismatches(manifest, repeat, TABLE_KEYS),
             "research_labels_read": "l3/forward_return" in manifest["input_read_log"],
             "max_nav_identity_abs": db.execute(f"""SELECT max(abs(reference_nav_cny-total_cash-reference_position_value_cny)) FROM {nav}""").fetchone()[0],
             "max_stress_nav_identity_abs": db.execute(f"""SELECT max(abs(stress_nav_cny-total_cash-stress_position_value_cny)) FROM {nav}""").fetchone()[0],
@@ -79,7 +79,8 @@ def main():
     result = {"passed": not failures, "step": 5, "run_id": run_id, "failures": failures,
               "observations": observations, "accounting_mode": "adjusted_unit_proxy",
               "economic_promoted": False, "can_enter_step6": not failures and manifest["tables"]["fill"]["rows"] > 0,
-              "real_share_account_ready": False, "live_ready": False}
+              "real_share_account_ready": False, "live_ready": False,
+              **repeat_metadata(mode, repeat_status)}
     target = run_root / "verification/step5_checks.json"
     target.parent.mkdir(exist_ok=True)
     target.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True, default=str) + "\n", encoding="utf-8")

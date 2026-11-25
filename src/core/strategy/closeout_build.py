@@ -5,13 +5,21 @@ from pathlib import Path
 import shutil
 
 from core.config.paths import PROJECT_ROOT
+from core.quality.verification import verification_metadata, verification_mode
 from core.strategy.closeout import REQUIRED_STEPS, closeout_report, closeout_status, step_evidence_errors
 from core.strategy.contract import (architecture_violations, canonical_hash, file_sha256,
                                     load_stage3_contract, verify_protected_hashes)
 
 
+def independent_repeat_complete(runs):
+    return all(item.get("verification", "audit") == "audit" and
+               item.get("repeat_status", "verified_existing") in {"executed", "verified_existing"}
+               for item in runs.values())
+
+
 class Step14Builder:
-    def __init__(self, config, project_root=PROJECT_ROOT):
+    def __init__(self, config, project_root=PROJECT_ROOT, verification="standard"):
+        self.verification = verification_mode(verification)
         self.config = config
         self.root = Path(project_root)
         self.research_root = self.root / config["delivery"]["root"]
@@ -32,7 +40,7 @@ class Step14Builder:
             manifest = self._json(manifest_path)
             verification = self._json(verification_path)
             active_run = self.config["delivery"][f"active_step{step}_run"]
-            step_errors = step_evidence_errors(step, active_run, manifest, verification)
+            step_errors = step_evidence_errors(step, Path(active_run).name, manifest, verification)
             registered = manifest.get("verification", {})
             verification_hash = file_sha256(verification_path)
             if registered.get("sha256") != verification_hash:
@@ -48,7 +56,9 @@ class Step14Builder:
                 "manifest_path": manifest_path.relative_to(self.root).as_posix(),
                 "manifest_sha256": file_sha256(manifest_path),
                 "verification_path": verification_path.relative_to(self.root).as_posix(),
-                "verification_sha256": verification_hash, "passed": verification.get("passed") is True}
+                "verification_sha256": verification_hash, "passed": verification.get("passed") is True,
+                "verification": verification.get("verification", "audit"),
+                "repeat_status": verification.get("repeat_status", "verified_existing")}
         protected = verify_protected_hashes(self.root)
         if not protected["passed"]:
             errors["protected_scope"] = protected["differences"]
@@ -82,6 +92,7 @@ class Step14Builder:
         account = "c0_three_module_fixed__executed_proxy_net"
         step4 = self._json(self.root / self.config["delivery"]["step4_verification"])["observations"]
         step13 = self._json(self.root / self.config["delivery"]["step13_verification"])["observations"]
+        repeat_complete = independent_repeat_complete(runs)
         result = {"step": 14, "closeout_status": "r1_complete_no_champion",
             **closeout_status(decision, r2_gate, True), "accounting_mode": "adjusted_unit_proxy",
             "fill_model": "proxy_not_observed", "design_seen": True, "validation_seen": True,
@@ -91,7 +102,9 @@ class Step14Builder:
             "portfolio": {"solved_days": step4["solved_days"], "infeasible_days": step4["infeasible_days"]},
             "robustness": {"truncation_prefix_mismatch": step13["truncation_prefix_mismatch"],
                            "future_prefix_mismatch": step13["future_prefix_mismatch"]},
-            "r2_blockers": r2_gate["blockers"], "known_boundaries": self.config["boundaries"]}
+            "r2_blockers": r2_gate["blockers"], "known_boundaries": self.config["boundaries"],
+            "independent_repeat_complete": repeat_complete, **verification_metadata(self.verification),
+            "audit_complete": self.verification == "audit" and repeat_complete}
         gate_specs = (
             ("G01", "upstream_and_frozen_protection", "contract,input_admission,protected_hashes"),
             ("G02", "permission_and_oos", "step7,step8,step9,step10,step12,step13"),
@@ -109,6 +122,10 @@ class Step14Builder:
         matrix = [{"gate_id": gate_id, "check": check, "passed": True, "evidence": evidence,
                    "method": "immutable_evidence_reconciliation_not_new_backtest"}
                   for gate_id, check, evidence in gate_specs]
+        for row in matrix:
+            if row["gate_id"] == "G10":
+                row["passed"] = True if repeat_complete else None
+                row["evidence"] = {"steps": runs, "status": "complete" if repeat_complete else "not_run"}
         input_manifest_path = self.root / self.config["delivery"]["input_bundle_manifest"]
         evidence = {"method": "manifest_and_verification_identity_reconciliation",
             "artifact_payload_rehashed": False, "runs": runs,
@@ -120,24 +137,27 @@ class Step14Builder:
             "plan_sha256": file_sha256(self.root / self.config["plan"]),
             "registry_sha256": file_sha256(self.root / "configs/strategy_registry.yaml"),
             "preregistration_sha256": file_sha256(self.root / self.config["step8"]["preregistration"]),
-            "design_seen": True, "validation_seen": True, "confirmation_seen": False, "oos_accessed": False}
+            "design_seen": True, "validation_seen": True, "confirmation_seen": False, "oos_accessed": False,
+            **verification_metadata(self.verification)}
         return {"closeout": result, "evidence": evidence, "gate_matrix": matrix,
                 "report": closeout_report(result, evidence, matrix)}
 
 
-def default_step14_run_id(project_root=PROJECT_ROOT, use_active=True):
+def default_step14_run_id(project_root=PROJECT_ROOT, use_active=True, verification="standard"):
     config = load_stage3_contract(project_root)["config"]
     active = config["delivery"].get("active_step14_run")
     if use_active and active:
         return active
     identity = {"step": 14, "step14": config["step14"],
+        "layout": config["protected_scope"].get("scope", "before_stage3_changes"),
+        "verification": verification_mode(verification),
         "evidence": {str(step): {
             "manifest": file_sha256(project_root / config["delivery"][f"step{step}_manifest"]),
             "verification": file_sha256(project_root / config["delivery"][f"step{step}_verification"])}
             for step in REQUIRED_STEPS},
         "code": {name: file_sha256(Path(__file__).with_name(name))
                  for name in ("closeout.py", "closeout_build.py")}}
-    return "step14_" + canonical_hash(identity)[:16]
+    return config["delivery"]["active_run_group"] + "/step14"
 
 
 def publish_step14(builder, output_root, run_id):
@@ -164,7 +184,8 @@ def publish_step14(builder, output_root, run_id):
         target.write_text(result["report"], encoding="utf-8")
         files[str(target.relative_to(staging))] = file_sha256(target)
         closeout = result["closeout"]
-        manifest = {"step": 14, "run_id": run_id, "status": "complete",
+        manifest = {"step": 14, "run_id": run_id,
+            "run_hash": "step14_" + canonical_hash(files)[:16], "status": "complete",
             "closeout_status": closeout["closeout_status"], "evidence_steps": list(REQUIRED_STEPS),
             "gate_count": len(result["gate_matrix"]), "new_backtest": False, "data_rows_read": 0,
             "research_labels_read": False, "input_read_log": [], "files": files,

@@ -39,6 +39,7 @@ def admitted_store(tmp_path, golden_root):
         assert report["passed"] is True
         assert report["acceptance_evidence"]["raw_unchanged"]["passed"] is True
         assert report["acceptance_evidence"]["repeatability"]["passed"] is True
+        store.stage = "stage2"
         yield store
 
 
@@ -53,7 +54,7 @@ def test_passing_stage1_state_yields_a_bound_upstream_bundle(admitted_store):
         assert entry["primary_key"] == key
         assert entry["sha256"]
     assert result["bundle_sha256"]
-    written = json.loads(admitted_store.paths.output("verification", "stage2_entry.json").read_text(encoding="utf-8"))
+    written = json.loads(admitted_store.output("verification", "stage2_entry.json").read_text(encoding="utf-8"))
     assert written == result
 
 
@@ -65,10 +66,10 @@ def test_bundle_hash_is_deterministic_across_repeated_checks(admitted_store):
 
 
 def test_missing_quality_report_blocks_entry(tmp_path, golden_root):
-    with Store(Paths(golden_root, tmp_path / "middle")) as store:
+    with Store(Paths(golden_root, tmp_path / "middle"), stage="stage2") as store:
         with pytest.raises(ValueError, match="Stage 2 entry gate failed"):
             check_stage2_entry(store)
-        written = json.loads(store.paths.output("verification", "stage2_entry.json").read_text(encoding="utf-8"))
+        written = json.loads(store.output("verification", "stage2_entry.json").read_text(encoding="utf-8"))
         assert written["passed"] is False
         assert any(f["check"] == "missing_report" for f in written["failures"])
 
@@ -88,13 +89,23 @@ def test_missing_acceptance_evidence_blocks_entry(tmp_path, golden_root):
         # supported-scope report can still pass without them.
         report = check_data_quality(store, l0_scope="core", verify_files=True)
         assert report["passed"] is True
+        store.stage = "stage2"
         with pytest.raises(ValueError):
             check_stage2_entry(store)
-        written = json.loads(store.paths.output("verification", "stage2_entry.json").read_text(encoding="utf-8"))
+        written = json.loads(store.output("verification", "stage2_entry.json").read_text(encoding="utf-8"))
         assert written["passed"] is False
         reasons = {f["check"] for f in written["failures"]}
         assert "acceptance_evidence_raw_unchanged_not_passed" in reasons
         assert "acceptance_evidence_repeatability_not_passed" in reasons
+
+
+def test_fast_entry_skips_parquet_hash_but_preserves_contract_checks(admitted_store, monkeypatch):
+    def unexpected_hash(_path):
+        raise AssertionError("fast entry must not hash parquet")
+    monkeypatch.setattr("core.factor.entry.file_sha256", unexpected_hash)
+    result = check_stage2_entry(admitted_store, verification="fast")
+    assert result["passed"] and not result["file_hash_verified"]
+    assert result["verification"] == "fast" and not result["audit_complete"]
 
 
 def test_tampered_published_file_is_detected_before_binding(admitted_store):
@@ -104,7 +115,7 @@ def test_tampered_published_file_is_detected_before_binding(admitted_store):
     try:
         with pytest.raises(ValueError, match="Stage 2 entry gate failed"):
             check_stage2_entry(admitted_store)
-        written = json.loads(admitted_store.paths.output("verification", "stage2_entry.json").read_text(encoding="utf-8"))
+        written = json.loads(admitted_store.output("verification", "stage2_entry.json").read_text(encoding="utf-8"))
         failure = next(f for f in written["failures"] if f["table"] == "daily_calendar")
         assert failure["check"] == "file_sha256_mismatch"
         assert "daily_calendar" not in written["upstream_tables"]
@@ -119,7 +130,7 @@ def test_missing_upstream_artifact_names_the_table(admitted_store):
     try:
         with pytest.raises(ValueError, match="Stage 2 entry gate failed"):
             check_stage2_entry(admitted_store)
-        written = json.loads(admitted_store.paths.output("verification", "stage2_entry.json").read_text(encoding="utf-8"))
+        written = json.loads(admitted_store.output("verification", "stage2_entry.json").read_text(encoding="utf-8"))
         failure = next(f for f in written["failures"] if f["table"] == "ttm_financial")
         assert failure["check"] == "missing_artifact"
     finally:

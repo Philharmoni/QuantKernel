@@ -10,12 +10,16 @@ from core.config.paths import PROJECT_ROOT
 from core.pipeline.stage2 import PIPELINE_STEPS, _compare_manifest_pair, run_stage2_pipeline
 
 
-def test_dry_run_covers_build_repeat_and_final_gate_without_data_access():
+def test_dry_run_covers_build_and_final_gate_without_data_access():
     result = run_stage2_pipeline(profile="does_not_exist", dry_run=True)
     assert result["dry_run"] and result["steps"] == PIPELINE_STEPS
     assert result["steps"][0] == "step00_stage1_admission"
     assert result["steps"][-1] == "step10_raw_unchanged_and_unified_quality"
-    assert {"repeat_step7", "repeat_step8", "repeat_step9"} <= set(result["steps"])
+    assert not {"repeat_step7", "repeat_step8", "repeat_step9"} & set(result["steps"])
+    assert result["verification"] == "standard" and not result["audit_complete"]
+    audit = run_stage2_pipeline(profile="does_not_exist", dry_run=True, verification="audit")
+    assert {"repeat_step7", "repeat_step8", "repeat_step9"} <= set(audit["steps"])
+    assert audit["audit_complete"]
     assert not result["network_downloads"] and not result["out_of_sample_evaluation"]
     with pytest.raises(ValueError, match="record_run"):
         run_stage2_pipeline(record_run="bad/name", dry_run=True)

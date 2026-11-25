@@ -16,6 +16,9 @@ def test_default_paths_ignore_working_directory(tmp_path, monkeypatch):
     paths = load_paths(PROJECT_ROOT / "configs" / "paths.yaml")
     assert paths.data_root == project / "data"
     assert paths.middle_root == project / "data_middle"
+    assert paths.factor_root == project / "factor_research"
+    assert paths.strategy_root == project / "strategy_research"
+    assert paths.verification_root == project / "verification"
 
 
 def test_profile_and_environment_override(tmp_path, monkeypatch):
@@ -51,9 +54,24 @@ def test_output_cannot_reach_raw_or_escape(tmp_path):
 
 
 def test_data_is_ignored_and_untracked():
-    tracked = subprocess.check_output(["git", "ls-files", "--", "data", "data_middle"], cwd=PROJECT_ROOT, text=True)
+    outputs = ["data", "data_middle", "factor_research", "strategy_research", "verification"]
+    tracked = subprocess.check_output(["git", "ls-files", "--", *outputs], cwd=PROJECT_ROOT, text=True)
     assert not tracked.strip()
-    names = ["data/probe", "data_middle/probe", "sample.parquet", "sample.duckdb", "run.log"]
+    names = [f"{name}/probe" for name in outputs] + ["sample.parquet", "sample.duckdb", "run.log"]
     for name in names:
         result = subprocess.run(["git", "check-ignore", "-q", name], cwd=PROJECT_ROOT)
         assert result.returncode == 0, name
+
+
+def test_stage_specific_output_routing(tmp_path):
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    paths = Paths(raw, tmp_path / "middle").validate()
+    assert paths.output("l1", "daily_calendar") == tmp_path / "middle/l1/daily_calendar"
+    assert paths.output("l2", "daily_research_universe") == tmp_path / "middle/l2/daily_research_universe"
+    assert paths.output("l1", "index_member_available") == tmp_path / "factor_research/l1/index_member_available"
+    assert paths.output("l3", "factor_value") == tmp_path / "factor_research/l3/factor_value"
+    assert paths.output("l4", "factor_summary") == tmp_path / "factor_research/l4/factor_summary"
+    assert paths.output("verification", "repeatability.json") == tmp_path / "verification/stage1/repeatability.json"
+    assert paths.output("_tmp") == tmp_path / "verification/stage1/tmp"
+    assert paths.output("_provenance") == tmp_path / "verification/stage1/provenance"

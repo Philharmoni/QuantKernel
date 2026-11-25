@@ -8,21 +8,22 @@ from core.strategy.contract import file_sha256, load_stage3_contract
 from core.strategy.inputs import SnapshotInputs
 from core.strategy.reporting_build import Step9Builder
 from core.strategy.reporting_publish import default_step9_run_id, publish_step9
+from core.strategy.verification import file_repeat_mismatches, repeat_metadata, resolve_repeat
+from core.quality.verification import verification_mode
 
 
 def main():
+    mode = verification_mode()
     config = load_stage3_contract()["config"]
-    root = PROJECT_ROOT / "data_middle/strategy_research"
+    root = PROJECT_ROOT / config["delivery"]["root"]
     run_id = default_step9_run_id()
     run_root = root / "runs" / run_id
     manifest = json.loads((run_root / "manifest.json").read_text(encoding="utf-8"))
     repeat_root = root / "verification" / (run_id + "_repeat")
     run_roots = {step: root / "runs" / config["delivery"][f"active_step{step}_run"] for step in range(3, 9)}
-    with SnapshotInputs(root / "inputs" / config["delivery"]["active_input_bundle"]) as inputs:
-        if repeat_root.exists():
-            repeat = json.loads((repeat_root / "manifest.json").read_text(encoding="utf-8"))
-        else:
-            repeat = publish_step9(Step9Builder(inputs, config, PROJECT_ROOT, run_roots), repeat_root, repeat_root.name)
+    with SnapshotInputs(root / "inputs" / config["delivery"]["active_input_bundle"], verification=mode) as inputs:
+        repeat, repeat_status = resolve_repeat(repeat_root, lambda: publish_step9(
+            Step9Builder(inputs, config, PROJECT_ROOT, run_roots), repeat_root, repeat_root.name), mode)
         metrics = json.loads((run_root / "evidence/report_metrics.json").read_text(encoding="utf-8"))
         decision = json.loads((run_root / "evidence/promotion_decision.json").read_text(encoding="utf-8"))
         index = json.loads((run_root / "evidence/evidence_index.json").read_text(encoding="utf-8"))
@@ -47,8 +48,7 @@ def main():
         evidence_hash_mismatches = [path for path, sha in index["reports"].items()
                                     if file_sha256(run_root / path) != sha]
         observations = {
-            "repeat_file_mismatches": [path for path, sha in manifest["files"].items()
-                                       if repeat["files"].get(path) != sha],
+            "repeat_file_mismatches": file_repeat_mismatches(manifest, repeat),
             "report_metric_mismatches": mismatches,
             "report_tokens_missing": report_tokens_missing,
             "evidence_hash_mismatches": evidence_hash_mismatches,
@@ -74,7 +74,7 @@ def main():
         "observations": observations, "decision": "no_champion_no_promotion",
         "economic_promoted": False, "can_enter_step10": not failures,
         "r2_backtest_permitted": False, "confirmation_seen": False, "oos_accessed": False,
-        "live_ready": False}
+        "live_ready": False, **repeat_metadata(mode, repeat_status)}
     target = run_root / "verification/step9_checks.json"
     target.parent.mkdir(exist_ok=True)
     target.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True, default=str) + "\n", encoding="utf-8")

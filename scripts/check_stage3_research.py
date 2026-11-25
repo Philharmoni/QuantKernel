@@ -8,26 +8,26 @@ from core.strategy.benchmark_build import fetch_dicts
 from core.strategy.contract import file_sha256, load_stage3_contract
 from core.strategy.inputs import SnapshotInputs
 from core.strategy.research_publish import TABLE_KEYS, default_step7_run_id, publish_step7
+from core.strategy.verification import repeat_metadata, resolve_repeat, table_repeat_mismatches
+from core.quality.verification import verification_mode
 
 
 def main():
+    mode = verification_mode()
     config = load_stage3_contract()["config"]
-    root = PROJECT_ROOT / "data_middle/strategy_research"
+    root = PROJECT_ROOT / config["delivery"]["root"]
     run_id = default_step7_run_id()
     run_root = root / "runs" / run_id
     manifest = json.loads((run_root / "manifest.json").read_text(encoding="utf-8"))
     repeat_root = root / "verification" / (run_id + "_repeat")
-    with SnapshotInputs(root / "inputs" / config["delivery"]["active_input_bundle"]) as inputs:
+    with SnapshotInputs(root / "inputs" / config["delivery"]["active_input_bundle"], verification=mode) as inputs:
         def builder():
             from core.strategy.research_build import Step7Builder
             return Step7Builder(inputs, root / "runs" / config["delivery"]["active_step3_run"],
                 root / "runs" / config["delivery"]["active_step4_run"],
                 root / "runs" / config["delivery"]["active_step5_run"], config)
-        if repeat_root.exists():
-            repeat = json.loads((repeat_root / "manifest.json").read_text(encoding="utf-8"))
-        else:
-            from core.strategy.research_build import Step7Builder
-            repeat = publish_step7(builder(), repeat_root, repeat_root.name)
+        repeat, repeat_status = resolve_repeat(repeat_root, lambda: publish_step7(
+            builder(), repeat_root, repeat_root.name), mode)
         db = inputs.db
         nav = f"read_parquet('{run_root}/l5/account_nav_daily/part-00000.parquet')"
         performance = f"read_parquet('{run_root}/l5/performance/part-00000.parquet')"
@@ -48,8 +48,7 @@ def main():
             monthly_gap = max(monthly_gap, abs(compound - 1.0 - float(expected["cumulative_return"])))
         observations = {
             "table_rows": {name: entry["rows"] for name, entry in manifest["tables"].items()},
-            "repeat_hash_mismatches": [table for table in TABLE_KEYS
-                if manifest["tables"][table]["sha256"] != repeat["tables"][table]["sha256"]],
+            "repeat_hash_mismatches": table_repeat_mismatches(manifest, repeat, TABLE_KEYS),
             "nav_identity_abs": db.execute(f"""SELECT max(greatest(abs(reference_nav_cny-total_cash-reference_position_value_cny),
                 abs(stress_nav_cny-total_cash-stress_position_value_cny))) FROM {nav}""").fetchone()[0],
             "calendar_inconsistent_days": db.execute(f"""SELECT count(*) FROM (
@@ -87,7 +86,8 @@ def main():
     result = {"passed": not failures, "step": 7, "run_id": run_id, "failures": failures,
         "observations": observations, "economic_promoted": False, "can_enter_step8": not failures,
         "validation_seen": False, "confirmation_seen": False, "oos_accessed": False,
-        "real_share_account_ready": False, "live_ready": False}
+        "real_share_account_ready": False, "live_ready": False,
+        **repeat_metadata(mode, repeat_status)}
     target = run_root / "verification/step7_checks.json"
     target.parent.mkdir(exist_ok=True)
     target.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True, default=str) + "\n", encoding="utf-8")

@@ -4,6 +4,7 @@ from pathlib import Path
 
 from core.config.paths import PROJECT_ROOT
 from core.factor.registry import factor_map
+from core.quality.verification import verification_metadata, verification_mode
 from core.strategy.contract import file_sha256, parse_ymd
 from core.strategy.inputs import SnapshotInputs, quote_name, load_input_spec
 
@@ -16,13 +17,14 @@ def sql_present(field):
     return f"NULLIF(CAST({quote_name(field)} AS VARCHAR),'') IS NOT NULL"
 
 
-def check_snapshot(bundle_root, project_root=PROJECT_ROOT, spec=None, registry_root=None):
+def check_snapshot(bundle_root, project_root=PROJECT_ROOT, spec=None, registry_root=None, verification="standard"):
+    mode = verification_mode(verification)
     failures = []
     observations = {}
     spec = spec or load_input_spec(project_root)
     registry_root = registry_root or project_root / "configs"
     try:
-        inputs = SnapshotInputs(bundle_root, project_root)
+        inputs = SnapshotInputs(bundle_root, project_root, verification=mode)
     except (OSError, ValueError, PermissionError) as error:
         return {"passed": False, "failures": [{"check": "input_access", "table": "bundle", "detail": str(error)}],
                 "observations": observations, "units": spec["units"], "capabilities": spec["capabilities"], "live_ready": False}
@@ -80,7 +82,8 @@ def check_snapshot(bundle_root, project_root=PROJECT_ROOT, spec=None, registry_r
             if name not in ("calendar_rows", "factor_value_ids", "factor_processed_ids", "quarantined_cross_cutoff_labels") and value:
                 failures.append({"check": name, "count": value})
     return {"passed": not failures, "failures": failures, "observations": observations,
-            "units": spec["units"], "capabilities": spec["capabilities"], "live_ready": False}
+            "units": spec["units"], "capabilities": spec["capabilities"], "live_ready": False,
+            **verification_metadata(mode)}
 
 
 def record_snapshot_admission(bundle_root, project_root=PROJECT_ROOT):

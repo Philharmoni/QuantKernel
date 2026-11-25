@@ -12,7 +12,7 @@ def main():
     config = load_stage3_contract()["config"]
     bundle = config["delivery"]["active_input_bundle"]
     run_id = default_run_id()
-    root = PROJECT_ROOT / "data_middle/strategy_research"
+    root = PROJECT_ROOT / config["delivery"]["root"]
     result = record_signal_checks(root / "runs" / run_id, root / "inputs" / bundle, config,
                                   truncation_date="20200430",
                                   repeat_root=root / "verification" / (run_id + "_repeat"))

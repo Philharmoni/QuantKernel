@@ -1,10 +1,16 @@
 # Relative roots are resolved against the project, never the working directory.
-# Environment DATA_ROOT / MIDDLE_ROOT overrides the selected profile.
+# Each root can be overridden by its same-named environment variable.
 profile: local
 profiles:
   local:
     DATA_ROOT: ./data
     MIDDLE_ROOT: ./data_middle
+    FACTOR_RESEARCH_ROOT: ./factor_research
+    STRATEGY_RESEARCH_ROOT: ./strategy_research
+    VERIFICATION_ROOT: ./verification
   server:
     DATA_ROOT: /data/tushare_data
     MIDDLE_ROOT: ./data_middle
+    FACTOR_RESEARCH_ROOT: ./factor_research
+    STRATEGY_RESEARCH_ROOT: ./strategy_research
+    VERIFICATION_ROOT: ./verification

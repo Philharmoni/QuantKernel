@@ -71,9 +71,10 @@ def main():
     args = parser.parse_args()
     paths = load_paths()
     output = args.output.resolve()
-    if output == paths.middle_root or not output.is_relative_to(paths.middle_root):
-        parser.error("--output must be a file inside configured MIDDLE_ROOT; raw data is read-only")
-    output = paths.output(*output.relative_to(paths.middle_root).parts)
+    evidence_root = paths.output("verification")
+    if output == evidence_root or not output.is_relative_to(evidence_root):
+        parser.error("--output must be a file inside VERIFICATION_ROOT/stage1; raw data is read-only")
+    output = paths.output("verification", *output.relative_to(evidence_root).parts)
     try:
         completed = subprocess.run(
             ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", args.host,

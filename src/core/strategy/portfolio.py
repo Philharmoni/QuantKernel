@@ -309,4 +309,4 @@ def default_step4_run_id(project_root=PROJECT_ROOT, use_active=True):
                 "portfolio": config["portfolio"], "objective": config["objective"], "costs": config["costs"],
                 "code": file_sha256(Path(__file__)),
                 "builder": file_sha256(Path(__file__).with_name("portfolio_build.py"))}
-    return "step4_" + canonical_hash(identity)[:16]
+    return config["delivery"]["active_run_group"] + "/step4"

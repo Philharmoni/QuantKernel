@@ -1,4 +1,5 @@
 """Step 14 R1 closeout status and deterministic handoff reporting."""
+from pathlib import Path
 
 
 REQUIRED_STEPS = (3, 4, 5, 6, 7, 8, 9, 10, 12, 13)
@@ -8,7 +9,13 @@ def step_evidence_errors(step, active_run, manifest, verification):
     errors = []
     if manifest.get("step") != step or verification.get("step") != step:
         errors.append("step_identity")
-    if manifest.get("run_id") != active_run or verification.get("run_id") != active_run:
+    expected_name = Path(str(active_run)).name
+
+    def matches(value):
+        name = Path(str(value)).name
+        return name == expected_name or name.startswith(expected_name + "_")
+
+    if not matches(manifest.get("run_id")) or not matches(verification.get("run_id")):
         errors.append("run_identity")
     if verification.get("passed") is not True or verification.get("failures"):
         errors.append("verification_not_passed")

@@ -1,9 +1,7 @@
-# Baseline factor registry (plan Step 5). Each entry is the single source of
-# truth for the factor's formula, inputs, lookback, min_periods, direction,
+# Baseline factor registry (plan Step 5). Each top-level factor_id is the single
+# source of truth for that factor's formula, inputs, lookback, min_periods, direction,
 # unit and PIT semantics. Changing a formula requires bumping that factor's
 # version and recording it in docs/STAGE2_EXECUTION.md.
-registry_version: 1
-
 # Shared conventions referenced by the entries below:
 #   prices      = L1 daily_adjusted_price (trade_date <= T only)
 #   ttm         = L1 ttm_financial, latest visible version per end_date with
@@ -26,227 +24,245 @@ registry_version: 1
 #   amount_yuan = amount * 1000 (source amount follows the TuShare 千元
 #                 convention; the conversion is an explicit documented
 #                 assumption, only scale-relevant, not rank-relevant)
-factors:
-  - factor_id: log_total_mv
-    version: 1
-    category: size
-    inputs: {table: daily_adjusted_price, fields: [total_mv]}
-    formula: ln(total_mv * 10000)
-    lookback: null
-    min_periods: null
-    expected_direction: -1
-    unit: log(CNY)
-    valid_from: '20180601'
-    pit: point-in-time quote row at T; no forward data.
-  - factor_id: log_circ_mv
-    version: 1
-    category: size
-    inputs: {table: daily_adjusted_price, fields: [circ_mv]}
-    formula: ln(circ_mv * 10000)
-    lookback: null
-    min_periods: null
-    expected_direction: -1
-    unit: log(CNY)
-    valid_from: '20180601'
-    pit: point-in-time quote row at T; no forward data.
-  - factor_id: ep_ttm
-    version: 1
-    category: value
-    inputs: {table: ttm_financial, metric: n_income_attr_p, price_field: total_mv}
-    formula: ttm(n_income_attr_p) / (total_mv * 10000)
-    lookback: null
-    min_periods: null
-    expected_direction: 1
-    unit: ratio
-    valid_from: '20180601'
-    pit: self-computed PIT earnings; vendor pe_ttm is comparison-only.
-  - factor_id: sp_ttm
-    version: 1
-    category: value
-    inputs: {table: ttm_financial, metric: revenue, price_field: total_mv}
-    formula: ttm(revenue) / (total_mv * 10000)
-    lookback: null
-    min_periods: null
-    expected_direction: 1
-    unit: ratio
-    valid_from: '20180601'
-    pit: self-computed PIT revenue; vendor ps_ttm is comparison-only.
-  - factor_id: cfp_ttm
-    version: 1
-    category: value
-    inputs: {table: ttm_financial, metric: n_cashflow_act, price_field: total_mv}
-    formula: ttm(n_cashflow_act) / (total_mv * 10000)
-    lookback: null
-    min_periods: null
-    expected_direction: 1
-    unit: ratio
-    valid_from: '20180601'
-    pit: self-computed PIT operating cash flow.
-  - factor_id: bp
-    version: 1
-    category: value
-    inputs: {table: financial_available, field: total_hldr_eqy_exc_min_int, price_field: total_mv}
-    formula: balance(total_hldr_eqy_exc_min_int) / (total_mv * 10000)
-    lookback: null
-    min_periods: null
-    expected_direction: 1
-    unit: ratio
-    valid_from: '20180601'
-    pit: latest visible balance-sheet version; vendor pb is comparison-only.
-  - factor_id: mom_12_1
-    version: 1
-    category: momentum
-    inputs: {table: daily_adjusted_price, fields: [adjusted_close]}
-    formula: adjusted_close(T-21) / adjusted_close(T-252) - 1
-    lookback: 252
-    skip_recent: 21
-    min_periods: exact_endpoints
-    expected_direction: 1
-    unit: ratio
-    valid_from: '20180601'
-    pit: both endpoints must be quoted on those exact trading days, else NULL.
-  - factor_id: mom_6_1
-    version: 1
-    category: momentum
-    inputs: {table: daily_adjusted_price, fields: [adjusted_close]}
-    formula: adjusted_close(T-21) / adjusted_close(T-126) - 1
-    lookback: 126
-    skip_recent: 21
-    min_periods: exact_endpoints
-    expected_direction: 1
-    unit: ratio
-    valid_from: '20180601'
-    pit: both endpoints must be quoted on those exact trading days, else NULL.
-  - factor_id: rev_20
-    version: 1
-    category: momentum
-    inputs: {table: daily_adjusted_price, fields: [adjusted_close]}
-    formula: adjusted_close(T) / adjusted_close(T-20) - 1
-    lookback: 20
-    skip_recent: 0
-    min_periods: exact_endpoints
-    expected_direction: -1
-    unit: ratio
-    valid_from: '20180601'
-    pit: short-term reversal sign is carried by expected_direction=-1, not by negating the value.
-  - factor_id: vol_20
-    version: 1
-    category: volatility
-    inputs: {table: daily_adjusted_price, fields: [ret_1d]}
-    formula: stddev_pop(ret_1d) over the last 20 trading days
-    lookback: 20
-    min_periods: 20
-    expected_direction: -1
-    unit: ratio
-    valid_from: '20180601'
-    pit: population std (ddof=0); ret_1d NULL on resumption days counts as missing.
-  - factor_id: vol_60
-    version: 1
-    category: volatility
-    inputs: {table: daily_adjusted_price, fields: [ret_1d]}
-    formula: stddev_pop(ret_1d) over the last 60 trading days
-    lookback: 60
-    min_periods: 60
-    expected_direction: -1
-    unit: ratio
-    valid_from: '20180601'
-    pit: population std (ddof=0).
-  - factor_id: turn_20
-    version: 1
-    category: liquidity
-    inputs: {table: daily_adjusted_price, fields: [turnover_rate]}
-    formula: avg(turnover_rate) over the last 20 trading days
-    lookback: 20
-    min_periods: 20
-    expected_direction: -1
-    unit: percent_per_day
-    valid_from: '20180601'
-    pit: vendor turnover_rate is used as-is (a quote fact, not a financial-statement derivative).
-  - factor_id: amihud_20
-    version: 1
-    category: liquidity
-    inputs: {table: daily_adjusted_price, fields: [ret_1d, amount]}
-    formula: avg(abs(ret_1d) / (amount * 1000)) over the last 20 trading days
-    lookback: 20
-    min_periods: 20
-    expected_direction: 1
-    unit: per_CNY
-    valid_from: '20180601'
-    pit: amount converted from 千元 to 元 (documented assumption); days with amount<=0 count as missing.
-  - factor_id: log_amount_20
-    version: 1
-    category: liquidity
-    inputs: {table: daily_adjusted_price, fields: [amount]}
-    formula: ln(avg(amount * 1000) over the last 20 trading days)
-    lookback: 20
-    min_periods: 20
-    expected_direction: -1
-    unit: log(CNY)
-    valid_from: '20180601'
-    pit: amount converted from 千元 to 元 (documented assumption).
-  - factor_id: rev_yoy_q
-    version: 1
-    category: growth
-    inputs: {table: quarterly_financial, metric: revenue}
-    formula: quarterly(revenue, E) / quarterly(revenue, E-1year) - 1
-    lookback: null
-    min_periods: null
-    expected_direction: 1
-    unit: ratio
-    valid_from: '20180601'
-    pit: E is the latest visible end_date at T; the prior-year same quarter must also be visible and 'available', else NULL.
-  - factor_id: np_yoy_q
-    version: 1
-    category: growth
-    inputs: {table: quarterly_financial, metric: n_income_attr_p}
-    formula: quarterly(n_income_attr_p, E) / quarterly(n_income_attr_p, E-1year) - 1
-    lookback: null
-    min_periods: null
-    expected_direction: 1
-    unit: ratio
-    valid_from: '20180601'
-    pit: same as-of rules as rev_yoy_q.
-  - factor_id: roa_ttm
-    version: 1
-    category: quality
-    inputs: {table: ttm_financial, metric: n_income_attr_p, balance_field: total_assets}
-    formula: ttm(n_income_attr_p) / balance(total_assets)
-    lookback: null
-    min_periods: null
-    expected_direction: 1
-    unit: ratio
-    valid_from: '20180601'
-    pit: point-in-time total_assets (not averaged); both sides must be visible at T.
-  - factor_id: roe_ttm
-    version: 1
-    category: quality
-    inputs: {table: ttm_financial, metric: n_income_attr_p, balance_field: total_hldr_eqy_exc_min_int}
-    formula: ttm(n_income_attr_p) / balance(total_hldr_eqy_exc_min_int)
-    lookback: null
-    min_periods: null
-    expected_direction: 1
-    unit: ratio
-    valid_from: '20180601'
-    pit: point-in-time equity (not averaged); both sides must be visible at T.
-  - factor_id: composite_equal
-    version: 1
-    category: composite
-    inputs: {table: factor_processed, composition: baseline_ws_z}
-    formula: mean(expected_direction_i * ws_z_i) over available components
-    lookback: null
-    min_periods: null
-    expected_direction: 1
-    unit: direction_adjusted_z_score
-    valid_from: '20180601'
-    pit: equal-weight composition; only component values observable at T.
-  - factor_id: composite_icir_60
-    version: 1
-    category: composite
-    inputs: {table: factor_processed, composition: baseline_ws_z, label_id: ret_o2o_5}
-    formula: signed rolling 60-observation RankICIR weights, normalized by sum(abs(weight))
-    lookback: 60
-    min_periods: 20
-    expected_direction: 1
-    unit: direction_adjusted_z_score
-    valid_from: '20180601'
-    pit: weights at T use only in-sample IC days whose entire label cross-section exited before T.
+log_total_mv:
+  version: 1
+  category: size
+  inputs: {fields: [total_mv], table: daily_adjusted_price}
+  formula: ln(total_mv * 10000)
+  lookback: null
+  min_periods: null
+  expected_direction: -1
+  unit: log(CNY)
+  valid_from: '20180601'
+  pit: point-in-time quote row at T; no forward data.
+
+log_circ_mv:
+  version: 1
+  category: size
+  inputs: {fields: [circ_mv], table: daily_adjusted_price}
+  formula: ln(circ_mv * 10000)
+  lookback: null
+  min_periods: null
+  expected_direction: -1
+  unit: log(CNY)
+  valid_from: '20180601'
+  pit: point-in-time quote row at T; no forward data.
+
+ep_ttm:
+  version: 1
+  category: value
+  inputs: {metric: n_income_attr_p, price_field: total_mv, table: ttm_financial}
+  formula: ttm(n_income_attr_p) / (total_mv * 10000)
+  lookback: null
+  min_periods: null
+  expected_direction: 1
+  unit: ratio
+  valid_from: '20180601'
+  pit: self-computed PIT earnings; vendor pe_ttm is comparison-only.
+
+sp_ttm:
+  version: 1
+  category: value
+  inputs: {metric: revenue, price_field: total_mv, table: ttm_financial}
+  formula: ttm(revenue) / (total_mv * 10000)
+  lookback: null
+  min_periods: null
+  expected_direction: 1
+  unit: ratio
+  valid_from: '20180601'
+  pit: self-computed PIT revenue; vendor ps_ttm is comparison-only.
+
+cfp_ttm:
+  version: 1
+  category: value
+  inputs: {metric: n_cashflow_act, price_field: total_mv, table: ttm_financial}
+  formula: ttm(n_cashflow_act) / (total_mv * 10000)
+  lookback: null
+  min_periods: null
+  expected_direction: 1
+  unit: ratio
+  valid_from: '20180601'
+  pit: self-computed PIT operating cash flow.
+
+bp:
+  version: 1
+  category: value
+  inputs: {field: total_hldr_eqy_exc_min_int, price_field: total_mv, table: financial_available}
+  formula: balance(total_hldr_eqy_exc_min_int) / (total_mv * 10000)
+  lookback: null
+  min_periods: null
+  expected_direction: 1
+  unit: ratio
+  valid_from: '20180601'
+  pit: latest visible balance-sheet version; vendor pb is comparison-only.
+
+mom_12_1:
+  version: 1
+  category: momentum
+  inputs: {fields: [adjusted_close], table: daily_adjusted_price}
+  formula: adjusted_close(T-21) / adjusted_close(T-252) - 1
+  lookback: 252
+  skip_recent: 21
+  min_periods: exact_endpoints
+  expected_direction: 1
+  unit: ratio
+  valid_from: '20180601'
+  pit: 'both endpoints must be quoted on those exact trading days, else NULL.'
+
+mom_6_1:
+  version: 1
+  category: momentum
+  inputs: {fields: [adjusted_close], table: daily_adjusted_price}
+  formula: adjusted_close(T-21) / adjusted_close(T-126) - 1
+  lookback: 126
+  skip_recent: 21
+  min_periods: exact_endpoints
+  expected_direction: 1
+  unit: ratio
+  valid_from: '20180601'
+  pit: 'both endpoints must be quoted on those exact trading days, else NULL.'
+
+rev_20:
+  version: 1
+  category: momentum
+  inputs: {fields: [adjusted_close], table: daily_adjusted_price}
+  formula: adjusted_close(T) / adjusted_close(T-20) - 1
+  lookback: 20
+  skip_recent: 0
+  min_periods: exact_endpoints
+  expected_direction: -1
+  unit: ratio
+  valid_from: '20180601'
+  pit: 'short-term reversal sign is carried by expected_direction=-1, not by negating the value.'
+
+vol_20:
+  version: 1
+  category: volatility
+  inputs: {fields: [ret_1d], table: daily_adjusted_price}
+  formula: stddev_pop(ret_1d) over the last 20 trading days
+  lookback: 20
+  min_periods: 20
+  expected_direction: -1
+  unit: ratio
+  valid_from: '20180601'
+  pit: population std (ddof=0); ret_1d NULL on resumption days counts as missing.
+
+vol_60:
+  version: 1
+  category: volatility
+  inputs: {fields: [ret_1d], table: daily_adjusted_price}
+  formula: stddev_pop(ret_1d) over the last 60 trading days
+  lookback: 60
+  min_periods: 60
+  expected_direction: -1
+  unit: ratio
+  valid_from: '20180601'
+  pit: population std (ddof=0).
+
+turn_20:
+  version: 1
+  category: liquidity
+  inputs: {fields: [turnover_rate], table: daily_adjusted_price}
+  formula: avg(turnover_rate) over the last 20 trading days
+  lookback: 20
+  min_periods: 20
+  expected_direction: -1
+  unit: percent_per_day
+  valid_from: '20180601'
+  pit: 'vendor turnover_rate is used as-is (a quote fact, not a financial-statement derivative).'
+
+amihud_20:
+  version: 1
+  category: liquidity
+  inputs: {fields: [ret_1d, amount], table: daily_adjusted_price}
+  formula: avg(abs(ret_1d) / (amount * 1000)) over the last 20 trading days
+  lookback: 20
+  min_periods: 20
+  expected_direction: 1
+  unit: per_CNY
+  valid_from: '20180601'
+  pit: amount converted from 千元 to 元 (documented assumption); days with amount<=0 count as missing.
+
+log_amount_20:
+  version: 1
+  category: liquidity
+  inputs: {fields: [amount], table: daily_adjusted_price}
+  formula: ln(avg(amount * 1000) over the last 20 trading days)
+  lookback: 20
+  min_periods: 20
+  expected_direction: -1
+  unit: log(CNY)
+  valid_from: '20180601'
+  pit: amount converted from 千元 to 元 (documented assumption).
+
+rev_yoy_q:
+  version: 1
+  category: growth
+  inputs: {metric: revenue, table: quarterly_financial}
+  formula: 'quarterly(revenue, E) / quarterly(revenue, E-1year) - 1'
+  lookback: null
+  min_periods: null
+  expected_direction: 1
+  unit: ratio
+  valid_from: '20180601'
+  pit: 'E is the latest visible end_date at T; the prior-year same quarter must also be visible and ''available'', else NULL.'
+
+np_yoy_q:
+  version: 1
+  category: growth
+  inputs: {metric: n_income_attr_p, table: quarterly_financial}
+  formula: 'quarterly(n_income_attr_p, E) / quarterly(n_income_attr_p, E-1year) - 1'
+  lookback: null
+  min_periods: null
+  expected_direction: 1
+  unit: ratio
+  valid_from: '20180601'
+  pit: same as-of rules as rev_yoy_q.
+
+roa_ttm:
+  version: 1
+  category: quality
+  inputs: {balance_field: total_assets, metric: n_income_attr_p, table: ttm_financial}
+  formula: ttm(n_income_attr_p) / balance(total_assets)
+  lookback: null
+  min_periods: null
+  expected_direction: 1
+  unit: ratio
+  valid_from: '20180601'
+  pit: point-in-time total_assets (not averaged); both sides must be visible at T.
+
+roe_ttm:
+  version: 1
+  category: quality
+  inputs: {balance_field: total_hldr_eqy_exc_min_int, metric: n_income_attr_p, table: ttm_financial}
+  formula: ttm(n_income_attr_p) / balance(total_hldr_eqy_exc_min_int)
+  lookback: null
+  min_periods: null
+  expected_direction: 1
+  unit: ratio
+  valid_from: '20180601'
+  pit: point-in-time equity (not averaged); both sides must be visible at T.
+
+composite_equal:
+  version: 1
+  category: composite
+  inputs: {composition: baseline_ws_z, table: factor_processed}
+  formula: mean(expected_direction_i * ws_z_i) over available components
+  lookback: null
+  min_periods: null
+  expected_direction: 1
+  unit: direction_adjusted_z_score
+  valid_from: '20180601'
+  pit: equal-weight composition; only component values observable at T.
+
+composite_icir_60:
+  version: 1
+  category: composite
+  inputs: {composition: baseline_ws_z, label_id: ret_o2o_5, table: factor_processed}
+  formula: 'signed rolling 60-observation RankICIR weights, normalized by sum(abs(weight))'
+  lookback: 60
+  min_periods: 20
+  expected_direction: 1
+  unit: direction_adjusted_z_score
+  valid_from: '20180601'
+  pit: weights at T use only in-sample IC days whose entire label cross-section exited before T.

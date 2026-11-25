@@ -37,6 +37,7 @@ from core.industry.pit import build_daily_industry
 from core.label.forward import build_forward_return
 from core.preprocess.panel import build_factor_processed
 from core.quality.stage2 import REPEAT_SPECS, REPEAT_STEP9_ROOTS, run_stage2_quality_gate
+from core.quality.verification import verification_metadata, verification_mode
 from core.reference.market import build_index_daily_available
 from core.reference.membership import build_index_member_available, build_index_weight_available
 
@@ -44,10 +45,20 @@ from core.reference.membership import build_index_member_available, build_index_
 PIPELINE_STEPS = [
     "step00_stage1_admission", "step01_golden_and_unit_tests", "step02_reference_and_membership",
     "step03_forward_labels", "step04_benchmark_and_calibration", "step05_baseline_factors",
-    "step06_preprocessing", "step07_single_factor_evaluation", "repeat_step7",
-    "step08_correlation_and_composites", "repeat_step8", "step09_reports", "repeat_step9",
+    "step06_preprocessing", "step07_single_factor_evaluation",
+    "step08_correlation_and_composites", "step09_reports",
     "step10_raw_unchanged_and_unified_quality",
 ]
+
+
+def pipeline_steps(verification="standard"):
+    steps = list(PIPELINE_STEPS)
+    if verification_mode(verification) == "audit":
+        for anchor, repeat in (("step09_reports", "repeat_step9"),
+                               ("step08_correlation_and_composites", "repeat_step8"),
+                               ("step07_single_factor_evaluation", "repeat_step7")):
+            steps.insert(steps.index(anchor) + 1, repeat)
+    return steps
 _STEP7_REQUIREMENTS = [
     ("l1", "daily_calendar", ()), ("l3", "factor_processed", ()),
     ("l3", "factor_value", ()), ("l3", "forward_return", ()), ("l3", "daily_index_member", ()),
@@ -84,13 +95,20 @@ def _link_or_copy(source, target):
 
 
 def _prepare_repeat_paths(paths, root_name, requirements):
-    repeat = Paths(paths.data_root, paths.middle_root / root_name)
+    workspace = paths.factor_root / root_name
+    repeat = Paths(paths.data_root, workspace / "data_middle", workspace / "factor_research",
+                   workspace / "strategy_research", workspace / "verification")
     for layer, name, extras in requirements:
-        for filename in ("part-00000.parquet", "manifest.json", *extras):
+        source_manifest_path = paths.output(layer, name, "manifest.json")
+        source_manifest = json.loads(source_manifest_path.read_text(encoding="utf-8"))
+        data_files = ["part-00000.parquet"]
+        if source_manifest.get("storage_layout") == "factor_id_partitioned_v1":
+            data_files = [entry["path"] for entry in source_manifest["partitions"].values()]
+        for filename in (*data_files, "manifest.json", *extras):
             source = paths.output(layer, name, filename)
             if not source.is_file():
                 raise FileNotFoundError(f"Repeat input is missing: {source}")
-            target = repeat.middle_root / layer / name / filename
+            target = repeat.output(layer, name, filename)
             _link_or_copy(source, target)
     return repeat
 
@@ -113,19 +131,19 @@ def _repeat_step7(paths, config_root, baseline_ids, start, end):
     repeat_paths = []
     for root in roots:
         repeat = _prepare_repeat_paths(paths, root, _STEP7_REQUIREMENTS)
-        repeat_paths.append(repeat.middle_root)
-        with Store(repeat, config_root=config_root) as store:
+        repeat_paths.append(repeat.factor_root)
+        with Store(repeat, config_root=config_root, stage="stage2") as store:
             evaluate_factors(store, start=start, end=end, factor_ids=baseline_ids, config_root=config_root)
     return _compare_manifest_pair(*repeat_paths, artifacts)
 
 
-def _repeat_step8(paths, config_root, start, end):
+def _repeat_step8(paths, config_root, start, end, composite_ids):
     roots, artifacts = REPEAT_SPECS["step8"]
     repeat_paths = []
     for root in roots:
         repeat = _prepare_repeat_paths(paths, root, _STEP8_REQUIREMENTS)
-        repeat_paths.append(repeat.middle_root)
-        with Store(repeat, config_root=config_root) as store:
+        repeat_paths.append(repeat.factor_root)
+        with Store(repeat, config_root=config_root, stage="stage2") as store:
             build_factor_correlation(store, start, end, config_root)
             build_composite_factors(store, start, end, config_root=config_root)
             build_factor_processed(store, start, end, config_root, composite_ids, merge_existing=True)
@@ -136,8 +154,8 @@ def _repeat_step9(paths, config_root):
     repeat_paths = []
     for root in REPEAT_STEP9_ROOTS:
         repeat = _prepare_repeat_paths(paths, root, _STEP9_REQUIREMENTS)
-        repeat_paths.append(repeat.middle_root / "l4" / "factor_report")
-        with Store(repeat, config_root=config_root) as store:
+        repeat_paths.append(repeat.factor_root / "l4" / "factor_report")
+        with Store(repeat, config_root=config_root, stage="stage2") as store:
             build_factor_reports(store, config_root=config_root)
     manifests = [json.loads((root / "manifest.json").read_text(encoding="utf-8")) for root in repeat_paths]
     if manifests[0] != manifests[1]:
@@ -151,18 +169,20 @@ def _repeat_step9(paths, config_root):
 
 
 def _write_status(paths, config_root, payload):
-    with Store(paths, config_root=config_root) as store:
+    with Store(paths, config_root=config_root, stage="stage2") as store:
         store.write_json(("verification", "stage2_build_status.json"), payload)
 
 
 def run_stage2_pipeline(profile=None, record_run="latest", dry_run=False,
-                        deep_primary_keys=False, config_root=None) -> dict:
+                        deep_primary_keys=False, config_root=None, verification="standard") -> dict:
+    mode = verification_mode(verification)
     if not re.fullmatch(r"[A-Za-z0-9_-]+", record_run):
         raise ValueError("record_run accepts only letters, digits, underscore and hyphen")
     if dry_run:
-        return {"dry_run": True, "steps": PIPELINE_STEPS,
+        return {"dry_run": True, "steps": pipeline_steps(mode),
                 "requires": ["raw DATA_ROOT", "passed Stage 1 artifacts", "Python test dependencies"],
-                "network_downloads": False, "out_of_sample_evaluation": False}
+                "network_downloads": False, "out_of_sample_evaluation": False,
+                **verification_metadata(mode)}
     started = time.perf_counter()
     paths = load_paths(profile=profile)
     research = load_settings("factor_research.yaml", config_root)
@@ -182,7 +202,7 @@ def run_stage2_pipeline(profile=None, record_run="latest", dry_run=False,
         logging.info("Starting %s", name)
         step_started = time.perf_counter()
         if use_store:
-            with Store(paths, config_root=config_root) as store:
+            with Store(paths, config_root=config_root, stage="stage2") as store:
                 result = action(store)
         else:
             result = action()
@@ -193,12 +213,13 @@ def run_stage2_pipeline(profile=None, record_run="latest", dry_run=False,
 
     try:
         _write_status(paths, config_root, {"status": "running", "run": record_run, "stages": stages})
-        with Store(paths, config_root=config_root) as store:
+        with Store(paths, config_root=config_root, stage="stage2") as store:
             store.write_json(("verification", "stage2_quality_gate.json"),
                              {"passed": False, "status": "rebuilding", "run": record_run})
-            store.paths.output("verification", "stage2_quality_gate.md").write_text(
+            store.output("verification", "stage2_quality_gate.md").write_text(
                 "# Stage 2 数据处理中\n\n当前重建尚未通过统一门禁。\n", encoding="utf-8")
-        execute("step00_stage1_admission", lambda store: check_stage2_entry(store, config_root))
+        entry_result = execute("step00_stage1_admission", lambda store: check_stage2_entry(
+            store, config_root, verification=mode))
 
         def tests():
             subprocess.run([sys.executable, "-m", "pytest", "-q"], cwd=PROJECT_ROOT, check=True)
@@ -233,8 +254,9 @@ def run_stage2_pipeline(profile=None, record_run="latest", dry_run=False,
             store, config_root=config_root, factor_ids=baseline_ids))
         execute("step07_single_factor_evaluation", lambda store: evaluate_factors(
             store, factor_ids=baseline_ids, config_root=config_root))
-        execute("repeat_step7", lambda store: _repeat_step7(
-            store.paths, config_root, baseline_ids, repeat_start, repeat_end))
+        if mode == "audit":
+            execute("repeat_step7", lambda store: _repeat_step7(
+                store.paths, config_root, baseline_ids, repeat_start, repeat_end))
 
         def composites(store):
             build_composite_factors(store, config_root=config_root)
@@ -251,14 +273,16 @@ def run_stage2_pipeline(profile=None, record_run="latest", dry_run=False,
             correlation = build_factor_correlation(store, config_root=config_root)
             return {"correlation": correlation, "factor_value": values["factor_value"]}
         execute("step08_correlation_and_composites", composites)
-        execute("repeat_step8", lambda store: _repeat_step8(
-            store.paths, config_root, repeat_start, repeat_end))
+        if mode == "audit":
+            execute("repeat_step8", lambda store: _repeat_step8(
+                store.paths, config_root, repeat_start, repeat_end, composite_ids))
 
         def reports(store):
             build_factor_coverage_report(store, config_root)
             return build_factor_reports(store, config_root=config_root)
         execute("step09_reports", reports)
-        execute("repeat_step9", lambda store: _repeat_step9(store.paths, config_root))
+        if mode == "audit":
+            execute("repeat_step9", lambda store: _repeat_step9(store.paths, config_root))
 
         def final_gate():
             after = _metadata_signature(inventory(paths.data_root))
@@ -266,23 +290,25 @@ def run_stage2_pipeline(profile=None, record_run="latest", dry_run=False,
                      "method": "relative path, file size and mtime_ns; raw files only read"}
             _write_status(paths, config_root, {"status": "running", "run": record_run,
                                                "stages": stages, "raw_proof": proof})
-            with Store(paths, config_root=config_root) as store:
+            with Store(paths, config_root=config_root, stage="stage2") as store:
                 store.write_json(("verification", "stage2_raw_unchanged.json"), proof)
             if not proof["passed"]:
                 raise ValueError("Raw source metadata changed during Stage 2")
-            with Store(paths, config_root=config_root) as store:
+            with Store(paths, config_root=config_root, stage="stage2") as store:
                 report = run_stage2_quality_gate(
                     store, truncation_dates=truncation_dates,
-                    deep_primary_keys=deep_primary_keys, config_root=config_root)
+                    deep_primary_keys=deep_primary_keys, config_root=config_root,
+                    verification=mode, entry_result=None if mode == "audit" else entry_result)
             if not report["passed"]:
                 raise ValueError(f"Unified Stage 2 quality gate failed: {report['failures'][:5]}")
             return report
         execute("step10_raw_unchanged_and_unified_quality", final_gate, use_store=False)
         run = {"passed": True, "status": "passed", "run": record_run,
                "elapsed_seconds": round(time.perf_counter() - started, 3), "stages": stages,
-               "raw_signature": before, "out_of_sample_evaluation": False}
+               "raw_signature": before, "out_of_sample_evaluation": False,
+               **verification_metadata(mode)}
         _write_status(paths, config_root, run)
-        with Store(paths, config_root=config_root) as store:
+        with Store(paths, config_root=config_root, stage="stage2") as store:
             store.write_json(("verification", "runs", f"stage2_{record_run}.json"), run)
         return run
     except Exception as error:

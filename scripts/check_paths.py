@@ -11,7 +11,8 @@ def main() -> None:
     parser.add_argument("--profile")
     args = parser.parse_args()
     paths = load_paths(args.paths, args.profile)
-    print(json.dumps({"DATA_ROOT": str(paths.data_root), "MIDDLE_ROOT": str(paths.middle_root)}, indent=2))
+    print(json.dumps({name: str(path) for name, path in
+                      (("DATA_ROOT", paths.data_root), *paths.output_roots)}, indent=2))
 
 
 if __name__ == "__main__":

@@ -12,17 +12,16 @@ announcement window (+/-5 trading days around any available financial
 disclosure of the same stock), which is the expected concentration pattern
 when the two sides disagree because of PIT visibility rather than an error.
 """
-from core.config.settings import load_settings
 from core.data.store import qs
+from core.factor.registry import factor_map
 
 DROP_RATIO = 0.5
 LARGE_DEVIATION = 0.05
 ANNOUNCEMENT_WINDOW_DAYS = 5
 
 
-def build_factor_coverage_report(store, config_root=None) -> dict:
-    registry = load_settings("factor_registry.yaml", config_root)
-    factor_ids = [f["factor_id"] for f in registry["factors"]]
+def build_factor_coverage_report(store, config_root=None, factor_ids=None) -> dict:
+    factor_ids = list(factor_ids) if factor_ids is not None else list(factor_map(config_root))
     relation = store.output_relation("l3", "factor_value")
     prices = store.output_relation("l1", "daily_adjusted_price")
     registered = ", ".join(f"({qs(factor_id)})" for factor_id in factor_ids)

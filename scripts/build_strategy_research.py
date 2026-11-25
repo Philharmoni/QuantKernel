@@ -11,7 +11,7 @@ from core.strategy.research_publish import default_step7_run_id, publish_step7
 
 def main():
     config = load_stage3_contract()["config"]
-    root = PROJECT_ROOT / "data_middle/strategy_research"
+    root = PROJECT_ROOT / config["delivery"]["root"]
     run_id = default_step7_run_id(use_active=False)
     with SnapshotInputs(root / "inputs" / config["delivery"]["active_input_bundle"]) as inputs:
         builder = Step7Builder(inputs, root / "runs" / config["delivery"]["active_step3_run"],

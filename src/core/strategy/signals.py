@@ -216,21 +216,19 @@ def publish_signals(inputs: SnapshotInputs, output_root, config: dict, overrides
         manifests[table] = {"path": f"l3/{table}/part-00000.parquet", "primary_key": key,
                             "rows": count, "schema": schema, "sha256": file_sha256(target)}
         (target.parent / "manifest.json").write_text(json.dumps(manifests[table], indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    identity = {"step": 3, "run_id": run_id or output_root.name, "as_of": build["as_of"],
-                "input_bundle": inputs.manifest.get("bundle_id", "golden_stage3"),
+    identity = {"step": 3, "run_id": run_id or output_root.name,
+                "run_hash": "step3_" + canonical_hash(manifests)[:16],
+                "as_of": build["as_of"], "input_bundle": inputs.manifest.get("bundle_id", "golden_stage3"),
                 "input_read_log": inputs.read_log, "research_labels_read": False,
                 "tables": manifests, "overrides": overrides or {}}
     (output_root / "manifest.json").write_text(json.dumps(identity, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return identity
 
 
-def default_run_id(project_root=PROJECT_ROOT):
+def default_run_id(project_root=PROJECT_ROOT, use_active=True):
     contract = load_stage3_contract(project_root)
-    active = contract["config"]["delivery"].get("active_step3_run")
-    if active:
+    config = contract["config"]
+    active = config["delivery"].get("active_step3_run")
+    if use_active and active:
         return active
-    bundle = contract["config"]["delivery"]["active_input_bundle"]
-    manifest_path = project_root / "data_middle/strategy_research/inputs" / bundle / "manifest.json"
-    identity = {"step": 3, "bundle_manifest": file_sha256(manifest_path),
-                "config": contract["config_sha256"], "signals": file_sha256(Path(__file__))}
-    return "step3_" + canonical_hash(identity)[:16]
+    return config["delivery"]["active_run_group"] + "/step3"

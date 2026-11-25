@@ -11,7 +11,7 @@ from core.strategy.portfolio_build import Step4Builder, publish_step4
 
 def main():
     config = load_stage3_contract()["config"]
-    root = PROJECT_ROOT / "data_middle/strategy_research"
+    root = PROJECT_ROOT / config["delivery"]["root"]
     bundle = config["delivery"]["active_input_bundle"]
     signal_run = root / "runs" / config["delivery"]["active_step3_run"]
     run_id = default_step4_run_id(use_active=False)

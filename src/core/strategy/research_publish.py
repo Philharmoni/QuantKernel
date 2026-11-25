@@ -31,7 +31,7 @@ def default_step7_run_id(project_root=PROJECT_ROOT, use_active=True):
         "code": {name: file_sha256(Path(__file__).with_name(name)) for name in
                  ("research.py", "research_build.py", "research_publish.py", "benchmark.py",
                   "benchmark_build.py", "r1_engine.py", "execution.py", "accounting.py")}}
-    return "step7_" + canonical_hash(identity)[:16]
+    return config["delivery"]["active_run_group"] + "/step7"
 
 
 def publish_step7(builder, output_root, run_id):
@@ -69,7 +69,8 @@ def publish_step7(builder, output_root, run_id):
             manifests[table] = {"path": str(target.relative_to(staging)), "primary_key": key,
                                 "rows": count, "schema": schema, "sha256": file_sha256(target)}
             (target.parent / "manifest.json").write_text(json.dumps(manifests[table], indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        identity = {"step": 7, "run_id": run_id, "status": "complete", "input_bundle": builder.inputs.manifest["bundle_id"],
+        identity = {"step": 7, "run_id": run_id,
+            "run_hash": "step7_" + canonical_hash(manifests)[:16], "status": "complete", "input_bundle": builder.inputs.manifest["bundle_id"],
             "period_id": "design", "design_period": builder.config["research_protocol"]["design_period"],
             "completed_candidates": ["c0_three_module_fixed"], "diagnostics_run": [],
             "validation_seen": False, "confirmation_seen": False, "oos_accessed": False,

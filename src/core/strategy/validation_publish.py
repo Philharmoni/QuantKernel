@@ -25,7 +25,7 @@ def default_step8_run_id(project_root=PROJECT_ROOT, use_active=True):
                  ("promotion.py", "validation_build.py", "validation_publish.py", "research.py",
                   "research_build.py", "benchmark.py", "benchmark_build.py", "r1_engine.py",
                   "execution.py", "accounting.py")}}
-    return "step8_" + canonical_hash(identity)[:16]
+    return config["delivery"]["active_run_group"] + "/step8"
 
 
 def publish_step8(builder, output_root, run_id):
@@ -64,7 +64,8 @@ def publish_step8(builder, output_root, run_id):
                                 "rows": count, "schema": schema, "sha256": file_sha256(target)}
             (target.parent / "manifest.json").write_text(json.dumps(manifests[table], indent=2, sort_keys=True) + "\n", encoding="utf-8")
         gate = tables["promotion_gate"][0]
-        identity = {"step": 8, "run_id": run_id, "status": "complete", "input_bundle": builder.inputs.manifest["bundle_id"],
+        identity = {"step": 8, "run_id": run_id,
+            "run_hash": "step8_" + canonical_hash(manifests)[:16], "status": "complete", "input_bundle": builder.inputs.manifest["bundle_id"],
             "candidate_id": builder.config["step8"]["candidate_id"], "period_id": "validation",
             "validation_period": builder.config["research_protocol"]["validation_period"],
             "preregistration_sha256": file_sha256(builder.preregistration_path),

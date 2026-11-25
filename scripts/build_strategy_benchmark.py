@@ -11,7 +11,7 @@ from core.strategy.inputs import SnapshotInputs
 
 def main():
     config = load_stage3_contract()["config"]
-    root = PROJECT_ROOT / "data_middle/strategy_research"
+    root = PROJECT_ROOT / config["delivery"]["root"]
     run_id = default_step6_run_id(use_active=False)
     with SnapshotInputs(root / "inputs" / config["delivery"]["active_input_bundle"]) as inputs:
         builder = Step6Builder(inputs, root / "runs" / config["delivery"]["active_step3_run"],

@@ -6,8 +6,9 @@ from pathlib import Path
 import re
 
 from core.calendar.trading import TradingCalendar
-from core.data.store import date_sql, json_text, qi, qs
+from core.data.store import date_sql, json_text, qi, qs, stored_artifact_sha256
 from core.market.prices import date_window
+from core.quality.verification import verification_metadata, verification_mode
 
 
 TABLES = {
@@ -43,14 +44,18 @@ def semantic_fingerprint(store, relation):
 
 
 class Quality:
-    def __init__(self, store, start, end, scope, verify_files):
+    def __init__(self, store, start, end, scope, verify_files=None, verification="standard"):
+        mode = verification_mode(verification)
         self.store, self.start, self.end = store, start, end
-        self.scope, self.verify_files = scope, verify_files
+        self.scope = scope
+        self.verify_files = mode == "audit" if verify_files is None else verify_files
+        self.content_fingerprint = mode != "fast"
         self.relations, self.profiles = {}, {}
         self.report = {'passed': False, 'full_phase_passed': False, 'scope': 'supported_data_only',
                        'config_hash': store.config_hash, 'code_hash': store.code_hash,
                        'quality_code_hash': QUALITY_CODE_HASH,
                        'requested_start': start, 'requested_end': end, 'l0_scope': scope,
+                       'file_hash_verified': self.verify_files, **verification_metadata(mode),
                        'failures': [], 'tables': {}, 'capabilities': store.rules['capabilities'],
                        'observations': {}, 'acceptance_evidence': {}}
 
@@ -116,7 +121,7 @@ class Quality:
                     except Exception as error:
                         self.fail(name, 'missing_upstream', ['upstream'], [{'upstream': upstream, 'error': str(error)}])
                 if self.verify_files:
-                    actual_hash = file_sha256(self.store.paths.output(layer, name, 'part-00000.parquet'))
+                    actual_hash = stored_artifact_sha256(self.store.paths.output(layer, name))
                     if actual_hash != manifest['sha256']:
                         self.fail(name, 'file_sha256', [], [{'expected': manifest['sha256'], 'actual': actual_hash}])
                 fields = ','.join(qi(c) for c in key)
@@ -139,7 +144,8 @@ class Quality:
                         'null_counts': {c: stats[f'n_{i}'] for i, c in enumerate(schema)},
                         'null_rates': {c: stats[f'n_{i}']/stats['row_count'] if stats['row_count'] else None for i, c in enumerate(schema)},
                         'date_ranges': {c: {'min': stats[f'lo_{i}'], 'max': stats[f'hi_{i}']} for i, c in enumerate(dates)},
-                        'sha256': manifest['sha256'], 'fingerprint': semantic_fingerprint(self.store, scoped)}
+                        'sha256': manifest['sha256'], 'file_hash_verified': self.verify_files,
+                        'fingerprint': semantic_fingerprint(self.store, scoped) if self.content_fingerprint else None}
                 self.report['tables'][name] = info
                 if not wrong:
                     self.relations[name] = scoped
@@ -471,8 +477,8 @@ class Quality:
         return report
 
 
-def check_data_quality(store, start=None, end=None, l0_scope='core', verify_files=True):
-    quality = Quality(store, start, end, l0_scope, verify_files)
+def check_data_quality(store, start=None, end=None, l0_scope='core', verify_files=None, verification="standard"):
+    quality = Quality(store, start, end, l0_scope, verify_files, verification)
     quality.l0()
     quality.tables()
     for name in ('market', 'financial', 'universe'):

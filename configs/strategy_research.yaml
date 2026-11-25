@@ -32,9 +32,10 @@ permissions:
     - configs/**
     - docs/**
     - data_middle/**/manifest.json
-    - data_middle/l4/factor_report/**
-    - data_middle/l4/factor_correlation/**
-    - data_middle/verification/stage2_quality_gate.json
+    - factor_research/**/manifest.json
+    - factor_research/l4/factor_report/**
+    - factor_research/l4/factor_correlation/**
+    - factor_research/verification/stage2_quality_gate.json
   unrestricted_file_reads: []
   require_actual_label_exit_within_cutoff: true
   no_full_calendar_or_full_file_hash_as_proof: true
@@ -193,8 +194,8 @@ step8:
   candidate_id: c0_three_module_fixed
   candidate_version: 2
   design_run_id: step7_561ab6b2cdfd201a
-  preregistration: data_middle/strategy_research/preregistration/step8_c0_v2_quantity.json
-  supersedes_preregistration: data_middle/strategy_research/preregistration/step8_c0_v2_warmfix.json
+  preregistration: strategy_research/preregistration/step8_c0_v2_quantity.json
+  supersedes_preregistration: strategy_research/preregistration/step8_c0_v2_warmfix.json
   engineering_change_reason: enforce_raw_share_quantity_constraints_while_preserving_candidate_economic_boundaries_and_r1_company_action_proxy
   economic_boundaries:
     minimum_annualized_return: '0.12'
@@ -223,6 +224,7 @@ step13:
 
 step14:
   scope: r1_closeout_only
+  run_layout: candidate_step_v2
   required_steps: [3, 4, 5, 6, 7, 8, 9, 10, 12, 13]
   new_backtest: false
   confirmation_access: false
@@ -283,56 +285,58 @@ boundaries:
 
 delivery:
   stage: R1_step14_closeout_complete
-  root: data_middle/strategy_research
-  active_step4_run: step4_876b1164f4f036fb
-  step4_manifest: data_middle/strategy_research/runs/step4_876b1164f4f036fb/manifest.json
-  step4_verification: data_middle/strategy_research/runs/step4_876b1164f4f036fb/verification/step4_checks.json
+  root: strategy_research
+  run_layout: candidate_step_v2
+  active_run_group: c0_three_module_fixed
+  active_step4_run: c0_three_module_fixed/step4
+  step4_manifest: strategy_research/runs/c0_three_module_fixed/step4/manifest.json
+  step4_verification: strategy_research/runs/c0_three_module_fixed/step4/verification/step4_checks.json
   can_enter_step5: true
-  active_step5_run: step5_9f475b1ee13824a8
-  step5_manifest: data_middle/strategy_research/runs/step5_9f475b1ee13824a8/manifest.json
-  step5_verification: data_middle/strategy_research/runs/step5_9f475b1ee13824a8/verification/step5_checks.json
+  active_step5_run: c0_three_module_fixed/step5
+  step5_manifest: strategy_research/runs/c0_three_module_fixed/step5/manifest.json
+  step5_verification: strategy_research/runs/c0_three_module_fixed/step5/verification/step5_checks.json
   can_enter_step6: true
-  active_step6_run: step6_062d042398ce6268
-  step6_manifest: data_middle/strategy_research/runs/step6_062d042398ce6268/manifest.json
-  step6_verification: data_middle/strategy_research/runs/step6_062d042398ce6268/verification/step6_checks.json
+  active_step6_run: c0_three_module_fixed/step6
+  step6_manifest: strategy_research/runs/c0_three_module_fixed/step6/manifest.json
+  step6_verification: strategy_research/runs/c0_three_module_fixed/step6/verification/step6_checks.json
   can_enter_step7: true
-  active_step7_run: step7_561ab6b2cdfd201a
-  step7_manifest: data_middle/strategy_research/runs/step7_561ab6b2cdfd201a/manifest.json
-  step7_verification: data_middle/strategy_research/runs/step7_561ab6b2cdfd201a/verification/step7_checks.json
+  active_step7_run: c0_three_module_fixed/step7
+  step7_manifest: strategy_research/runs/c0_three_module_fixed/step7/manifest.json
+  step7_verification: strategy_research/runs/c0_three_module_fixed/step7/verification/step7_checks.json
   can_enter_step8: true
-  active_step8_run: step8_60ed2e94ff2095d6
-  step8_manifest: data_middle/strategy_research/runs/step8_60ed2e94ff2095d6/manifest.json
-  step8_verification: data_middle/strategy_research/runs/step8_60ed2e94ff2095d6/verification/step8_checks.json
+  active_step8_run: c0_three_module_fixed/step8
+  step8_manifest: strategy_research/runs/c0_three_module_fixed/step8/manifest.json
+  step8_verification: strategy_research/runs/c0_three_module_fixed/step8/verification/step8_checks.json
   can_enter_step9: true
-  active_step9_run: step9_da7a206a49ef300f
-  step9_manifest: data_middle/strategy_research/runs/step9_da7a206a49ef300f/manifest.json
-  step9_verification: data_middle/strategy_research/runs/step9_da7a206a49ef300f/verification/step9_checks.json
+  active_step9_run: c0_three_module_fixed/step9
+  step9_manifest: strategy_research/runs/c0_three_module_fixed/step9/manifest.json
+  step9_verification: strategy_research/runs/c0_three_module_fixed/step9/verification/step9_checks.json
   can_enter_step10: true
-  active_step10_run: step10_19ee62909de9ff0c
-  step10_manifest: data_middle/strategy_research/runs/step10_19ee62909de9ff0c/manifest.json
-  step10_verification: data_middle/strategy_research/runs/step10_19ee62909de9ff0c/verification/step10_checks.json
+  active_step10_run: c0_three_module_fixed/step10
+  step10_manifest: strategy_research/runs/c0_three_module_fixed/step10/manifest.json
+  step10_verification: strategy_research/runs/c0_three_module_fixed/step10/verification/step10_checks.json
   r2_backtest_permitted: false
   can_enter_step11: false
   can_enter_step12_r1_sensitivity: true
-  active_step12_run: step12_ea36c33e2ad88b83
-  step12_manifest: data_middle/strategy_research/runs/step12_ea36c33e2ad88b83/manifest.json
-  step12_verification: data_middle/strategy_research/runs/step12_ea36c33e2ad88b83/verification/step12_checks.json
+  active_step12_run: c0_three_module_fixed/step12
+  step12_manifest: strategy_research/runs/c0_three_module_fixed/step12/manifest.json
+  step12_verification: strategy_research/runs/c0_three_module_fixed/step12/verification/step12_checks.json
   can_enter_step13: true
-  active_step13_run: step13_ca34e79a644edb68
-  step13_manifest: data_middle/strategy_research/runs/step13_ca34e79a644edb68/manifest.json
-  step13_verification: data_middle/strategy_research/runs/step13_ca34e79a644edb68/verification/step13_checks.json
+  active_step13_run: c0_three_module_fixed/step13
+  step13_manifest: strategy_research/runs/c0_three_module_fixed/step13/manifest.json
+  step13_verification: strategy_research/runs/c0_three_module_fixed/step13/verification/step13_checks.json
   can_enter_step14: true
-  active_step14_run: step14_1122601ce843ba32
-  step14_manifest: data_middle/strategy_research/runs/step14_1122601ce843ba32/manifest.json
-  step14_verification: data_middle/strategy_research/runs/step14_1122601ce843ba32/verification/step14_checks.json
+  active_step14_run: c0_three_module_fixed/step14
+  step14_manifest: strategy_research/runs/c0_three_module_fixed/step14/manifest.json
+  step14_verification: strategy_research/runs/c0_three_module_fixed/step14/verification/step14_checks.json
   r1_research_complete: true
-  active_step3_run: step3_cd3844b567612ae5
-  step3_manifest: data_middle/strategy_research/runs/step3_cd3844b567612ae5/manifest.json
-  step3_verification: data_middle/strategy_research/runs/step3_cd3844b567612ae5/verification/step3_checks.json
+  active_step3_run: c0_three_module_fixed/step3
+  step3_manifest: strategy_research/runs/c0_three_module_fixed/step3/manifest.json
+  step3_verification: strategy_research/runs/c0_three_module_fixed/step3/verification/step3_checks.json
   current_input_status: admitted_physical_snapshot
   active_input_bundle: in_sample_65efe5cadd765004
-  input_bundle_manifest: data_middle/strategy_research/inputs/in_sample_65efe5cadd765004/manifest.json
-  input_bundle_admission: data_middle/strategy_research/inputs/in_sample_65efe5cadd765004/admission.json
+  input_bundle_manifest: strategy_research/inputs/in_sample_65efe5cadd765004/manifest.json
+  input_bundle_admission: strategy_research/inputs/in_sample_65efe5cadd765004/admission.json
   engineering_passed: true
   economic_promoted: false
   real_share_account_ready: false
@@ -340,15 +344,18 @@ delivery:
   oos_accessed: false
 
 protected_scope:
-  hashes_file: configs/stage3_protected_hashes.json
+  scope: verification_modes_v1
+  hashes_file: configs/stage3_verification_modes_protected_hashes.json
   paths:
     - data
     - data_middle/l0
     - data_middle/l1
     - data_middle/l2
-    - data_middle/l3
-    - data_middle/l4
-    - data_middle/verification
+    - factor_research/l1
+    - factor_research/l3
+    - factor_research/l4
+    - factor_research/verification
+    - verification/stage1
     - DATA_PROCESSING_STAGE1_PLAN.md
     - FACTOR_RESEARCH_STAGE2_PLAN.md
     - docs/STAGE1_EXECUTION.md
@@ -357,15 +364,18 @@ protected_scope:
     - configs/factor_research.yaml
     - configs/factor_registry.yaml
     - configs/tushare_tables.yaml
+    - research/factors
     - src
     - tests
     - scripts
     - pyproject.toml
     - requirements-lock.txt
   excludes:
-    - data_middle/_tmp
-    - data_middle/_provenance
-    - data_middle/strategy_research
+    - factor_research/_tmp
+    - factor_research/_provenance
+    - verification/stage1/tmp
+    - verification/stage1/provenance
+    - strategy_research
     - tests/__pycache__
     - tests/.pytest_cache
     - scripts/__pycache__

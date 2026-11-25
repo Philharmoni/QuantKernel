@@ -1,0 +1,8 @@
+version: 1
+require_manual_approval: true
+min_rank_ic_days: 60
+# Optional numeric research thresholds. Null means that human review decides.
+min_abs_rank_ic: null
+min_abs_rank_icir: null
+max_abs_peer_correlation: null
+require_primary_horizons: [5, 20]

@@ -32,7 +32,7 @@ def default_step13_run_id(project_root=PROJECT_ROOT, use_active=True):
         "code": {name: file_sha256(Path(__file__).with_name(name)) for name in
                  ("robustness.py", "robustness_build.py", "robustness_publish.py", "r1_engine.py",
                   "execution.py", "accounting.py")}}
-    return "step13_" + canonical_hash(identity)[:16]
+    return config["delivery"]["active_run_group"] + "/step13"
 
 
 def publish_step13(builder, output_root, run_id):
@@ -71,7 +71,8 @@ def publish_step13(builder, output_root, run_id):
                                 "rows": count, "schema": schema, "sha256": file_sha256(target)}
             (target.parent / "manifest.json").write_text(
                 json.dumps(manifests[table], indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        manifest = {"step": 13, "run_id": run_id, "status": "complete", "period_id": "design",
+        manifest = {"step": 13, "run_id": run_id,
+            "run_hash": "step13_" + canonical_hash(manifests)[:16], "status": "complete", "period_id": "design",
             "design_period": builder.config["research_protocol"]["design_period"],
             "truncation_date": builder.cutoff, "future_quote_multiplier": builder.multiplier,
             "input_bundle": builder.inputs.manifest["bundle_id"],

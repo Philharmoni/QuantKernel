@@ -221,6 +221,24 @@ def test_evaluation_is_reproducible_except_append_only_trial_ids(evaluated):
     assert len(read_trial_log(store)) == 2
 
 
+def test_custom_universe_evaluation_uses_only_its_processed_panel(tmp_path):
+    store, config_root = _build_panel_store(tmp_path)
+    with store:
+        processed = store.output_relation("l3", "factor_processed")
+        store.publish("l3", "factor_processed",
+                      f"SELECT * EXCLUDE (universe_id),'fixture_pool' AS universe_id FROM {processed}",
+                      ["trade_date", "ts_code", "factor_id", "universe_id", "process_id"])
+        result = evaluate_factors(store, factor_ids=["rev_20"], process_ids=["ws_z"],
+                                  horizons=[1, 5], config_root=config_root,
+                                  custom_universe_id="fixture_pool")
+        assert result["factor_summary"]["rows"] > 0
+        summary = store.output_relation("l4", "factor_summary")
+        assert store.rows(f"SELECT DISTINCT universe_id FROM {summary}") == [{"universe_id": "fixture_pool"}]
+        with pytest.raises(ValueError, match="isolated"):
+            evaluate_factors(store, factor_ids=["rev_20"], config_root=config_root,
+                             merge_existing=True, custom_universe_id="fixture_pool")
+
+
 def test_out_of_sample_second_access_is_rejected_before_build(evaluated):
     store, config_root, _ = evaluated
     append_trial_log(store, [{"factor_id": "rev_20", "factor_version": 1,

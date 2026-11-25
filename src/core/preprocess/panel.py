@@ -15,6 +15,7 @@ from core.data.store import qs
 from core.factor.registry import factor_map
 from core.market.prices import date_window
 from core.preprocess.ops import process_cross_section
+from core.universe.custom import custom_universe_identity
 
 import numpy as np
 import pyarrow as pa
@@ -22,7 +23,12 @@ import pyarrow as pa
 _FLUSH_ROWS = 1_000_000
 
 
-def _universe_members_sql(store, universe_id, research):
+def _universe_members_sql(store, universe_id, research, custom=False):
+    if custom:
+        custom_universe_identity(store, universe_id)
+        relation = store.output_relation("l2", "custom_research_universe")
+        return (f"SELECT trade_date,ts_code FROM {relation} WHERE universe_id={qs(universe_id)} "
+                "AND is_in_universe IS TRUE")
     universe = store.output_relation("l2", "daily_research_universe")
     if universe_id in research["benchmark"]["research_universes"]:
         return (f"SELECT trade_date, ts_code FROM {universe} "
@@ -36,9 +42,12 @@ def _universe_members_sql(store, universe_id, research):
 
 
 def build_factor_processed(store, start=None, end=None, config_root=None, factor_ids=None,
-                           merge_existing=False) -> dict:
+                           merge_existing=False, market_cap_relation=None, custom_universe_id=None) -> dict:
     research = load_settings("factor_research.yaml", config_root)
     pre = research["preprocessing"]
+    if custom_universe_id is not None and merge_existing:
+        raise ValueError("Custom-universe preprocessing requires an isolated output root")
+    universes = [custom_universe_id] if custom_universe_id is not None else pre["universes"]
     engine = research["engine"]
     store.db.execute(f"SET memory_limit={qs(engine['memory_limit'])}")
     store.db.execute(f"SET threads={int(engine['threads'])}")
@@ -67,6 +76,7 @@ def build_factor_processed(store, start=None, end=None, config_root=None, factor
         trade_date DATE, ts_code VARCHAR, factor_id VARCHAR,
         universe_id VARCHAR, process_id VARCHAR, value DOUBLE)""")
     factor_values = store.output_relation("l3", "factor_value")
+    market_cap = market_cap_relation or factor_values
     industry = store.output_relation("l3", "daily_industry")
     window = date_window(store, start, end, "f.trade_date")
     quantile_rows = []
@@ -85,8 +95,9 @@ def build_factor_processed(store, start=None, end=None, config_root=None, factor
         flush_buffer["rows"].clear()
         flush_buffer["count"] = 0
 
-    for universe_id in pre["universes"]:
-        members = _universe_members_sql(store, universe_id, research)
+    for universe_id in universes:
+        members = _universe_members_sql(store, universe_id, research,
+                                        custom=custom_universe_id is not None)
         for factor_id in selected:
             query = f"""
                 SELECT f.trade_date, f.ts_code, f.value,
@@ -95,7 +106,7 @@ def build_factor_processed(store, start=None, end=None, config_root=None, factor
                 FROM (SELECT * FROM {factor_values} WHERE factor_id={qs(factor_id)}) f
                 JOIN ({members}) u ON u.trade_date=f.trade_date AND u.ts_code=f.ts_code
                 LEFT JOIN {industry} ind ON ind.trade_date=f.trade_date AND ind.ts_code=f.ts_code
-                LEFT JOIN (SELECT trade_date, ts_code, value FROM {factor_values}
+                LEFT JOIN (SELECT trade_date, ts_code, value FROM {market_cap}
                            WHERE factor_id='log_circ_mv') mv
                   ON mv.trade_date=f.trade_date AND mv.ts_code=f.ts_code
                 WHERE {window}

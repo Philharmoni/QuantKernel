@@ -56,14 +56,34 @@ def test_input_unit_contract_does_not_claim_real_share_readiness():
     assert spec["capabilities"]["company_action_ledger"] is False
 
 
-def test_snapshot_hash_is_checked_on_every_input_read():
+def test_snapshot_hash_detects_tampering_before_first_read():
+    SnapshotInputs.clear_verification_cache()
     with SnapshotInputs.from_fixture(ROOT) as inputs:
         entry = inputs.manifest["tables"]["l1/daily_calendar"]
-        saved = entry["sha256"]
         entry["sha256"] = "bad"
         with pytest.raises(ValueError, match="hash mismatch"):
             inputs.relation("l1/daily_calendar")
-        entry["sha256"] = saved
+
+
+def test_snapshot_content_is_hashed_once_per_bundle_and_never_in_fast(monkeypatch):
+    from core.strategy import inputs as input_module
+    SnapshotInputs.clear_verification_cache()
+    original = input_module.file_sha256
+    calls = []
+    monkeypatch.setattr(input_module, "file_sha256", lambda path: calls.append(path) or original(path))
+    with SnapshotInputs.from_fixture(ROOT) as inputs:
+        inputs.relation("l1/daily_calendar")
+        verified_calls = len(calls)
+        assert verified_calls == len(inputs.manifest["tables"])
+        inputs.relation("l1/daily_calendar")
+        assert len(calls) == verified_calls
+    with SnapshotInputs.from_fixture(ROOT) as inputs:
+        inputs.relation("l1/daily_calendar")
+        assert len(calls) == verified_calls
+    SnapshotInputs.clear_verification_cache()
+    with SnapshotInputs.from_fixture(ROOT, verification="fast") as inputs:
+        inputs.relation("l1/daily_calendar")
+        assert len(calls) == verified_calls
 
 
 def test_full_stage2_artifacts_are_not_snapshot_proof():
@@ -80,7 +100,7 @@ def test_snapshot_admission_passes_and_rejects_oos_on_fictional_bundle(tmp_path)
     from core.strategy.admission import check_snapshot
     from core.strategy.contract import file_sha256
     from core.strategy.inputs import load_input_spec
-    root = tmp_path / "data_middle/strategy_research/inputs/test_bundle"
+    root = tmp_path / "strategy_research/inputs/test_bundle"
     tables = {
         "l1/daily_calendar": {"key": ["trade_date"], "rows": [{"trade_date": "2024-12-31", "trade_index": 1, "next_trade_date": None}]},
         "l1/daily_adjusted_price": {"key": ["trade_date", "ts_code"], "rows": [{"trade_date": "2024-12-31", "ts_code": "SA001.SZ"}]},
@@ -116,6 +136,6 @@ def test_snapshot_admission_passes_and_rejects_oos_on_fictional_bundle(tmp_path)
     assert result["observations"]["factor_value_ids"] == 20
     path = root / manifest["tables"]["l1/daily_calendar"]["path"]
     path.write_text("trade_date,trade_index,next_trade_date\n2025-01-02,2,2025-01-03\n")
-    result = check_snapshot(root, tmp_path, spec=load_input_spec(Path.cwd()), registry_root=Path.cwd() / "configs")
+    result = check_snapshot(root, tmp_path, spec=load_input_spec(Path.cwd()), registry_root=Path.cwd() / "configs", verification="audit")
     assert not result["passed"]
     assert any(failure["check"] == "input_access" and "hash mismatch" in failure["detail"] for failure in result["failures"])

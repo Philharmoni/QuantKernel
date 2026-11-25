@@ -103,11 +103,14 @@ install, checksums = sys.argv[5] == '1', sys.argv[6] == '1'
 if workspace.parent != Path('/tmp') or not workspace.name.startswith('quantkernel-stage1-'):
     raise SystemExit('Refusing a workspace outside a new /tmp/quantkernel-stage1-* directory')
 source, middle, evidence = workspace / 'source', workspace / 'middle', workspace / 'evidence'
+factor = workspace / 'factor_research'
+strategy = workspace / 'strategy_research'
+verification = workspace / 'verification'
 if not (source / '.stage1-source-manifest.json').is_file() or not raw.is_dir():
     raise SystemExit('Missing verified source bundle or remote DATA_ROOT')
 if raw == workspace or raw.is_relative_to(workspace) or workspace.is_relative_to(raw):
     raise SystemExit('Remote workspace and DATA_ROOT must be disjoint')
-if evidence.exists() or middle.exists():
+if any(path.exists() for path in (evidence, middle, factor, strategy, verification)):
     raise SystemExit('Refusing to reuse a previous verification workspace')
 evidence.mkdir()
 
@@ -148,6 +151,7 @@ def execute(command, logfile, environment):
                 print('Remote phase still running: ' + logfile, file=sys.stderr, flush=True)
 
 result = {'workspace': str(workspace), 'raw_root': str(raw), 'middle_root': str(middle),
+          'factor_root': str(factor), 'strategy_root': str(strategy), 'verification_root': str(verification),
           'start': start, 'end': end, 'started_at_utc': datetime.now(timezone.utc).isoformat(),
           'build_exit_code': None, 'passed': False}
 before = None
@@ -155,7 +159,9 @@ try:
     print('Reading remote raw-data metadata before verification', file=sys.stderr, flush=True)
     before = inventory()
     save('raw_before.json', before)
-    environment = dict(os.environ, DATA_ROOT=str(raw), MIDDLE_ROOT=str(middle), DATA_PROFILE='local',
+    environment = dict(os.environ, DATA_ROOT=str(raw), MIDDLE_ROOT=str(middle),
+                       FACTOR_RESEARCH_ROOT=str(factor), STRATEGY_RESEARCH_ROOT=str(strategy),
+                       VERIFICATION_ROOT=str(verification), DATA_PROFILE='local',
                        PYTHONDONTWRITEBYTECODE='1', PYTHONUNBUFFERED='1', PIP_DISABLE_PIP_VERSION_CHECK='1')
     python = sys.executable
     if install:
@@ -233,12 +239,12 @@ if workspace.parent != Path('/tmp') or not workspace.name.startswith('quantkerne
     raise SystemExit('Refusing evidence collection outside the isolated verification workspace')
 files = list((workspace / 'evidence').glob('*'))
 files.append(workspace / 'source' / '.stage1-source-manifest.json')
-middle = workspace / 'middle'
-if middle.exists():
-    files.extend(path for path in middle.rglob('*')
-                 if path.is_file() and (path.name == 'manifest.json' or
-                    (path.suffix in ('.json','.md') and
-                     ('data_quality_report' in path.parts or 'verification' in path.parts))))
+for derived_root in (workspace / 'middle', workspace / 'verification'):
+    if derived_root.exists():
+        files.extend(path for path in derived_root.rglob('*')
+                     if path.is_file() and (path.name == 'manifest.json' or
+                        (path.suffix in ('.json','.md') and
+                         (derived_root.name == 'verification' or 'data_quality_report' in path.parts))))
 with tarfile.open(fileobj=sys.stdout.buffer, mode='w|gz') as archive:
     for path in sorted(set(files)):
         if path.is_symlink() or not path.is_file() or not path.resolve().is_relative_to(workspace):
@@ -272,7 +278,7 @@ def _source_bundle(root):
         candidates.update((root / folder).rglob("*.py"))
     candidates.update(path for path in (root / "tests" / "fixtures" / "golden").glob("*")
                       if path.suffix in (".csv", ".json", ".md"))
-    forbidden_roots = {"data", "data_middle"}
+    forbidden_roots = {"data", "data_middle", "factor_research", "strategy_research", "verification"}
     forbidden_parts = {".git", ".venv", "venv", "__pycache__", ".codex", ".agents"}
     records, content = [], []
     for path in sorted(candidates):
@@ -305,7 +311,7 @@ def _source_bundle(root):
     return target.getvalue(), manifest
 
 
-def _save_evidence(payload, output, paths):
+def _save_evidence(payload, output):
     with tarfile.open(fileobj=io.BytesIO(payload), mode="r:gz") as archive:
         for member in archive.getmembers():
             relative = PurePosixPath(member.name)
@@ -314,7 +320,6 @@ def _save_evidence(payload, output, paths):
             target = (output / member.name).resolve()
             if not target.is_relative_to(output):
                 raise ValueError(f"Evidence archive escapes output directory: {member.name}")
-            target = paths.output(*target.relative_to(paths.middle_root).parts)
             target.parent.mkdir(parents=True, exist_ok=True)
             with archive.extractfile(member) as incoming, target.open("wb") as stream:
                 import shutil
@@ -363,7 +368,7 @@ def main():
                                  int(args.install_dependencies), int(args.verify_raw_sha256)], timeout=7200))
     finally:
         payload = _ssh(args.host, COLLECT, [prepared["workspace"]], timeout=300)
-        _save_evidence(payload, output, paths)
+        _save_evidence(payload, output)
     (output / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(result, ensure_ascii=False, indent=2), flush=True)
     print(f"Local server-verification evidence: {output}", flush=True)

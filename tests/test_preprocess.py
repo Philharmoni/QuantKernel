@@ -260,6 +260,36 @@ def test_insufficient_cross_section_produces_no_rows(tmp_path):
         assert {r["skip_reason"] for r in reasons} == {"insufficient_cross_section"}
 
 
+def test_custom_universe_is_processed_as_an_independent_cross_section(tmp_path):
+    store, destination = _build_fixture_store(tmp_path, min_cross_section=5)
+    with store:
+        factor_values = store.output_relation("l3", "factor_value")
+        codes = [row["ts_code"] for row in store.rows(
+            f"SELECT ts_code FROM {factor_values} WHERE factor_id='log_total_mv' "
+            "AND trade_date=DATE '2020-03-23' ORDER BY ts_code LIMIT 5")]
+        values = ", ".join(f"('{code}')" for code in codes)
+        store.db.execute(f"""CREATE TEMP VIEW custom_config_input AS
+            SELECT 'fixture_pool' AS universe_id,'fixture_config' AS config_id,
+                   '{{}}' AS config_json,'active' AS status""")
+        store.publish("l2", "custom_research_universe_config",
+                      "SELECT * FROM custom_config_input", ["universe_id"])
+        store.db.execute(f"""CREATE TEMP VIEW custom_members_input AS
+            SELECT DISTINCT trade_date,ts_code,'Fixture' AS stock_name,
+                   'fixture_pool' AS universe_id,true AS is_in_universe
+            FROM {factor_values} WHERE factor_id='log_total_mv'
+              AND ts_code IN (SELECT ts_code FROM (VALUES {values}) AS v(ts_code))""")
+        store.publish("l2", "custom_research_universe", "SELECT * FROM custom_members_input",
+                      ["trade_date", "ts_code", "universe_id"])
+        build_factor_processed(store, config_root=destination, factor_ids=["log_total_mv"],
+                               custom_universe_id="fixture_pool")
+        actual = _processed(store, "2020-03-23", "log_total_mv", "ws_z", "fixture_pool")
+        assert len(actual) == 5 and {row["ts_code"] for row in actual} == set(codes)
+        assert sum(row["value"] for row in actual) == pytest.approx(0.0, abs=1e-12)
+        with pytest.raises(ValueError, match="isolated"):
+            build_factor_processed(store, config_root=destination, factor_ids=["log_total_mv"],
+                                   merge_existing=True, custom_universe_id="fixture_pool")
+
+
 def test_preprocess_module_isolation_guards():
     assert check_no_raw_access() == []
     assert check_factor_label_isolation() == []

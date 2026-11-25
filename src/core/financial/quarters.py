@@ -181,7 +181,7 @@ def build_quarterly_and_ttm(store):
     schemas = {'quarterly': pa.schema(base), 'ttm': pa.schema(base + [
         ('source_quarter_ids', pa.list_(pa.string())), ('missing_source_end_dates', pa.list_(pa.date32())),
         ('unavailable_source_end_dates', pa.list_(pa.date32()))])}
-    paths = {name: store.paths.output('_tmp', name + '_financial.input.parquet') for name in schemas}
+    paths = {name: store.output('_tmp', name + '_financial.input.parquet') for name in schemas}
     buffers = {name: [] for name in schemas}
     writers = {name: pq.ParquetWriter(paths[name], schema, compression='zstd') for name, schema in schemas.items()}
     try:

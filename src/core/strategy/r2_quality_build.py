@@ -52,7 +52,7 @@ def default_step10_run_id(project_root=PROJECT_ROOT, use_active=True):
         "input_manifest": file_sha256(project_root / config["delivery"]["input_bundle_manifest"]),
         "code": {name: file_sha256(Path(__file__).with_name(name)) for name in
                  ("r2_quality.py", "r2_quality_build.py")}}
-    return "step10_" + canonical_hash(identity)[:16]
+    return config["delivery"]["active_run_group"] + "/step10"
 
 
 def publish_r2_quality(builder, output_root, run_id):
@@ -77,7 +77,8 @@ def publish_r2_quality(builder, output_root, run_id):
         target.parent.mkdir(parents=True)
         target.write_text(result["report"], encoding="utf-8")
         files[str(target.relative_to(staging))] = file_sha256(target)
-        manifest = {"step": 10, "run_id": run_id, "status": "complete", "quality_gate_executed": True,
+        manifest = {"step": 10, "run_id": run_id,
+            "run_hash": "step10_" + canonical_hash(files)[:16], "status": "complete", "quality_gate_executed": True,
             "engineering_passed": True, "r2_quality_gate_passed": result["gate"]["passed"],
             "r2_backtest_permitted": False, "can_enter_step11": False,
             "can_enter_step12_r1_sensitivity": True, "real_share_account_ready": False, "live_ready": False,

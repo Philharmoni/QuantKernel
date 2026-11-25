@@ -15,9 +15,11 @@ class Step8Builder:
         self.step7_run = Path(step7_run)
         self.preregistration_path = Path(project_root) / config["step8"]["preregistration"]
         self.preregistration = json.loads(self.preregistration_path.read_text(encoding="utf-8"))
+        design_manifest = json.loads((self.step7_run / "manifest.json").read_text(encoding="utf-8"))
+        design_run_id = Path(design_manifest.get("run_hash", design_manifest.get("run_id", self.step7_run.name))).name
         if self.preregistration["candidate_id"] != config["step8"]["candidate_id"]:
             raise ValueError("Step 8 candidate differs from pre-registration")
-        if self.preregistration["design_run_id"] != self.step7_run.name:
+        if self.preregistration["design_run_id"] != design_run_id:
             raise ValueError("Step 8 design parent differs from pre-registration")
         self.research = Step7Builder(inputs, step3_run, step4_run, step5_run, config,
             period_id="validation", period_range=config["research_protocol"]["validation_period"],

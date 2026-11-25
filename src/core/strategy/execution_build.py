@@ -79,7 +79,7 @@ def default_step5_run_id(project_root=PROJECT_ROOT, use_active=True):
         "objective": config["objective"],
         "code": {name: file_sha256(Path(__file__).with_name(name)) for name in
                  ("execution.py", "accounting.py", "r1_engine.py", "execution_build.py")}}
-    return "step5_" + canonical_hash(identity)[:16]
+    return config["delivery"]["active_run_group"] + "/step5"
 
 
 def publish_step5(builder, output_root, run_id, end_date=None):
@@ -117,7 +117,8 @@ def publish_step5(builder, output_root, run_id, end_date=None):
             manifests[table] = {"path": str(target.relative_to(staging)), "primary_key": key,
                                 "rows": count, "schema": schema, "sha256": file_sha256(target)}
             (target.parent / "manifest.json").write_text(json.dumps(manifests[table], indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        identity = {"step": 5, "run_id": run_id, "status": "complete", "input_bundle": builder.inputs.manifest["bundle_id"],
+        identity = {"step": 5, "run_id": run_id,
+            "run_hash": "step5_" + canonical_hash(manifests)[:16], "status": "complete", "input_bundle": builder.inputs.manifest["bundle_id"],
             "step4_manifest_sha256": file_sha256(builder.step4_run / "manifest.json"),
             "execution_model": "daily_open_proxy_v1", "fill_model": "proxy_not_observed",
             "accounting_mode": "adjusted_unit_proxy", "real_share_account_ready": False,

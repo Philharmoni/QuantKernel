@@ -27,18 +27,20 @@ def test_saved_run_comparison_checks_required_identity_and_outputs(tmp_path):
                'daily_trade_status', 'financial_available', 'quarterly_and_ttm', 'research_universe')],
            'tables': {name: copy.deepcopy(table) for name in names}}
     raw, middle = tmp_path / 'raw', tmp_path / 'middle'
+    verification = tmp_path / 'verification' / 'stage1'
     raw.mkdir()
-    runs = middle / 'verification' / 'runs'
+    runs = verification / 'runs'
     runs.mkdir(parents=True)
     first, second = runs / 'first.json', runs / 'second.json'
     first.write_text(json.dumps(run), encoding='utf-8')
-    env = dict(os.environ, DATA_ROOT=str(raw), MIDDLE_ROOT=str(middle))
+    env = dict(os.environ, DATA_ROOT=str(raw), MIDDLE_ROOT=str(middle),
+               VERIFICATION_ROOT=str(tmp_path / 'verification'))
 
     def compare(candidate, *flags):
         second.write_text(json.dumps(candidate), encoding='utf-8')
         result = subprocess.run([sys.executable, str(script), 'first', 'second', *flags],
                                 cwd=root, env=env, capture_output=True, text=True)
-        proof = json.loads((middle / 'verification' / 'repeatability.json').read_text(encoding='utf-8'))
+        proof = json.loads((verification / 'repeatability.json').read_text(encoding='utf-8'))
         return result, proof
 
     result, proof = compare(run)
@@ -97,7 +99,7 @@ def test_saved_run_comparison_checks_required_identity_and_outputs(tmp_path):
     assert result.returncode == 0, result.stderr
     assert proof['passed'] is True
 
-    local_runs = middle / 'verification' / 'local_runs'
+    local_runs = verification / 'local_runs'
     local_runs.mkdir()
     local = dict(copy.deepcopy(run), scope='non_documentation_raw_files', full_pipeline_passed=False)
     (local_runs / 'first.json').write_text(json.dumps(local), encoding='utf-8')
@@ -106,7 +108,7 @@ def test_saved_run_comparison_checks_required_identity_and_outputs(tmp_path):
         (local_runs / 'second.json').write_text(json.dumps(candidate), encoding='utf-8')
         result = subprocess.run([sys.executable, str(script), 'first', 'second', '--local-validation'],
                                 cwd=root, env=env, capture_output=True, text=True)
-        proof = json.loads((middle / 'verification' / 'repeatability.json').read_text(encoding='utf-8'))
+        proof = json.loads((verification / 'repeatability.json').read_text(encoding='utf-8'))
         return result, proof
 
     result, proof = compare_local(local)

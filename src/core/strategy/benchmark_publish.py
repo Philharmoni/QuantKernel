@@ -29,7 +29,7 @@ def default_step6_run_id(project_root=PROJECT_ROOT, use_active=True):
         "code": {name: file_sha256(Path(__file__).with_name(name)) for name in
                  ("benchmark.py", "benchmark_build.py", "benchmark_publish.py", "r1_engine.py",
                   "execution.py", "accounting.py")}}
-    return "step6_" + canonical_hash(identity)[:16]
+    return config["delivery"]["active_run_group"] + "/step6"
 
 
 def publish_step6(builder, output_root, run_id, end_date=None, perturb_after=None):
@@ -67,7 +67,8 @@ def publish_step6(builder, output_root, run_id, end_date=None, perturb_after=Non
             manifests[table] = {"path": str(target.relative_to(staging)), "primary_key": key,
                                 "rows": count, "schema": schema, "sha256": file_sha256(target)}
             (target.parent / "manifest.json").write_text(json.dumps(manifests[table], indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        identity = {"step": 6, "run_id": run_id, "status": "complete", "input_bundle": builder.inputs.manifest["bundle_id"],
+        identity = {"step": 6, "run_id": run_id,
+            "run_hash": "step6_" + canonical_hash(manifests)[:16], "status": "complete", "input_bundle": builder.inputs.manifest["bundle_id"],
             "step5_manifest_sha256": file_sha256(builder.step5_run / "manifest.json"),
             "small_window": builder.config["step6"]["small_window"], "accounting_mode": "adjusted_unit_proxy",
             "real_share_account_ready": False, "research_labels_read": False,

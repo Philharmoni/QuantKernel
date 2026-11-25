@@ -31,9 +31,24 @@ def test_layering_checks_current_file_schema_and_key(tmp_path, golden_stage2_roo
         assert wrong["failures"][0]["check"] == "primary_key"
 
 
-def test_repeatability_compares_stage1_and_step7_to_9_evidence(tmp_path, golden_stage2_root):
+def test_standard_layering_uses_manifest_hash_without_rehashing(tmp_path, golden_stage2_root, monkeypatch):
     with Store(Paths(golden_stage2_root, tmp_path / "middle")) as store:
-        store.write_json(("verification", "repeatability.json"), {"differences": []})
+        artifact = {"l3/factor_value": ["trade_date", "ts_code", "factor_id"]}
+        _publish(store, "l3", "factor_value",
+                 [{"trade_date": "2020-01-02", "ts_code": "SA001.SZ", "factor_id": "rev_20", "value": 1.0}],
+                 artifact["l3/factor_value"])
+        monkeypatch.setattr("core.quality.stage2.stored_artifact_sha256",
+                            lambda _path: (_ for _ in ()).throw(AssertionError("unexpected file hash")))
+        result = check_layering(store, artifact)
+        assert result["passed"] and not result["file_hash_verified"]
+        assert result["tables"]["l3/factor_value"]["file_hash_verified"] is False
+
+
+def test_repeatability_compares_stage1_and_step7_to_9_evidence(tmp_path, golden_stage2_root):
+    with Store(Paths(golden_stage2_root, tmp_path / "middle"), stage="stage2") as store:
+        stage1_path = store.paths.output("verification", "repeatability.json")
+        stage1_path.parent.mkdir(parents=True, exist_ok=True)
+        stage1_path.write_text(json.dumps({"differences": []}), encoding="utf-8")
         specs = {"step7": (("_repeat_step7_c", "_repeat_step7_d"),
                            [("l4", name) for name in ("factor_ic_daily", "factor_quantile_return", "factor_summary")]),
                  "step8": (("_repeat_step8_a", "_repeat_step8_b"),
@@ -43,18 +58,21 @@ def test_repeatability_compares_stage1_and_step7_to_9_evidence(tmp_path, golden_
         for _, (roots, artifacts) in specs.items():
             for root in roots:
                 for layer, name in artifacts:
-                    path = store.paths.middle_root / root / layer / name / "manifest.json"
+                    path = store.paths.factor_root / root / "factor_research" / layer / name / "manifest.json"
                     path.parent.mkdir(parents=True, exist_ok=True)
                     path.write_text(json.dumps({"rows": 1, "sha256": "same"}), encoding="utf-8")
         for root in ("_repeat_step9_a", "_repeat_step9_b"):
-            path = store.paths.middle_root / root / "l4" / "factor_report" / "manifest.json"
+            path = store.paths.factor_root / root / "factor_research" / "l4" / "factor_report" / "manifest.json"
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(json.dumps({"files": {}}), encoding="utf-8")
-        result = check_repeatability(store)
+        result = check_repeatability(store, verification="audit")
         assert result["passed"] and len(result["comparisons"]) == 11
-        path = store.paths.middle_root / "_repeat_step7_d" / "l4" / "factor_summary" / "manifest.json"
+        standard = check_repeatability(store)
+        assert standard["passed"] and len(standard["comparisons"]) == 1
+        assert not standard["stage2_executed"] and standard["status"] == "stage2_repeat_not_requested"
+        path = store.paths.factor_root / "_repeat_step7_d" / "factor_research" / "l4" / "factor_summary" / "manifest.json"
         path.write_text(json.dumps({"rows": 1, "sha256": "different"}), encoding="utf-8")
-        assert not check_repeatability(store)["passed"]
+        assert not check_repeatability(store, verification="audit")["passed"]
 
 
 def test_documentation_requires_all_eleven_steps(tmp_path):

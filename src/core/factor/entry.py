@@ -16,6 +16,7 @@ import re
 from core.config.settings import load_settings
 from core.data.store import json_text
 from core.quality.checks import TABLES, file_sha256
+from core.quality.verification import verification_metadata, verification_mode
 
 # Source subpackages that belong to Stage 2 and must never call the raw-table
 # reader on Store (method name intentionally not spelled out literally here
@@ -35,20 +36,25 @@ _LABEL_IMPORT_PATTERN = re.compile(
 
 def check_factor_label_isolation(src_root: Path | None = None) -> list[str]:
     root = Path(src_root) if src_root else Path(__file__).resolve().parents[1]
-    folder = root / 'factor'
+    folders = [root / 'factor']
+    if src_root is None:
+        folders.append(Path(__file__).resolve().parents[3] / 'research' / 'factors')
     violations = []
-    if folder.is_dir():
-        for path in sorted(folder.rglob('*.py')):
-            if _LABEL_IMPORT_PATTERN.search(path.read_text(encoding='utf-8')):
-                violations.append(str(path))
+    for folder in folders:
+        if folder.is_dir():
+            for path in sorted(folder.rglob('*.py')):
+                if _LABEL_IMPORT_PATTERN.search(path.read_text(encoding='utf-8')):
+                    violations.append(str(path))
     return violations
 
 
 def check_no_raw_access(src_root: Path | None = None) -> list[str]:
     root = Path(src_root) if src_root else Path(__file__).resolve().parents[1]
+    folders = [root / sub for sub in STAGE2_SOURCE_DIRS]
+    if src_root is None:
+        folders.append(Path(__file__).resolve().parents[3] / 'research' / 'factors')
     violations = []
-    for sub in STAGE2_SOURCE_DIRS:
-        folder = root / sub
+    for folder in folders:
         if not folder.is_dir():
             continue
         for path in sorted(folder.rglob('*.py')):
@@ -57,7 +63,10 @@ def check_no_raw_access(src_root: Path | None = None) -> list[str]:
     return violations
 
 
-def check_stage2_entry(store, config_root: Path | None = None) -> dict:
+def check_stage2_entry(store, config_root: Path | None = None, verification="standard",
+                       verify_files: bool | None = None) -> dict:
+    mode = verification_mode(verification)
+    verify_files = mode != "fast" if verify_files is None else verify_files
     research = load_settings('factor_research.yaml', config_root)
     required_evidence = research['stage2_entry']['required_acceptance_evidence']
     failures = []
@@ -93,7 +102,7 @@ def check_stage2_entry(store, config_root: Path | None = None) -> dict:
         missing_fields = sorted(set(required) - set(manifest.get('schema', {})))
         if missing_fields:
             fail(name, 'schema_missing_fields', missing_fields, [{'manifest_schema': manifest.get('schema')}])
-        actual_sha = file_sha256(part_path)
+        actual_sha = file_sha256(part_path) if verify_files else manifest.get('sha256')
         if actual_sha != manifest.get('sha256'):
             fail(name, 'file_sha256_mismatch', ['sha256'], [{'manifest': manifest.get('sha256'), 'actual': actual_sha}])
             continue
@@ -120,6 +129,8 @@ def check_stage2_entry(store, config_root: Path | None = None) -> dict:
         'stage1_report_passed': report.get('passed') if report else None,
         'stage1_config_hash': report.get('config_hash') if report else None,
         'stage1_code_hash': report.get('code_hash') if report else None,
+        'file_hash_verified': verify_files,
+        **verification_metadata(mode),
     }
     store.write_json(('verification', 'stage2_entry.json'), result)
     if not passed:

@@ -9,7 +9,7 @@ from core.strategy.r2_quality_build import R2QualityBuilder, default_step10_run_
 
 def main():
     config = load_stage3_contract()["config"]
-    root = PROJECT_ROOT / "data_middle/strategy_research"
+    root = PROJECT_ROOT / config["delivery"]["root"]
     run_id = default_step10_run_id(use_active=False)
     result = publish_r2_quality(R2QualityBuilder(config, PROJECT_ROOT), root / "runs" / run_id, run_id)
     print(json.dumps({"run_id": run_id, "quality_gate_executed": True,

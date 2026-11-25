@@ -32,6 +32,17 @@ def test_step0_freezes_scope_candidates_and_r1_boundary(contract):
         assert contract["delivery"][key] is False
 
 
+def test_candidate_run_layout_groups_every_active_step(contract):
+    delivery = contract["delivery"]
+    group = delivery["active_run_group"]
+    assert delivery["run_layout"] == "candidate_step_v2"
+    assert group == "c0_three_module_fixed"
+    for step in (3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14):
+        assert delivery[f"active_step{step}_run"] == group + "/step" + str(step)
+        assert delivery[f"step{step}_manifest"] == (
+            "strategy_research/runs/" + group + "/step" + str(step) + "/manifest.json")
+
+
 def test_oos_default_and_actual_label_endpoints_are_enforced(contract):
     for field in ("trade_date", "entry_date", "exit_date"):
         with pytest.raises(PermissionError, match=field):

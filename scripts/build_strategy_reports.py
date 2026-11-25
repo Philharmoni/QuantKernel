@@ -11,7 +11,7 @@ from core.strategy.reporting_publish import default_step9_run_id, publish_step9
 
 def main():
     config = load_stage3_contract()["config"]
-    root = PROJECT_ROOT / "data_middle/strategy_research"
+    root = PROJECT_ROOT / config["delivery"]["root"]
     run_roots = {step: root / "runs" / config["delivery"][f"active_step{step}_run"] for step in range(3, 9)}
     run_id = default_step9_run_id(use_active=False)
     with SnapshotInputs(root / "inputs" / config["delivery"]["active_input_bundle"]) as inputs:

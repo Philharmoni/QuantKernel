@@ -280,7 +280,7 @@ def _summary_frame(rows):
 
 def evaluate_factors(store, start=None, end=None, factor_ids=None, process_ids=None,
                      horizons=None, include_out_of_sample=False, config_root=None,
-                     merge_existing=False) -> dict:
+                     merge_existing=False, market_cap_relation=None, custom_universe_id=None) -> dict:
     research = load_settings("factor_research.yaml", config_root)
     engine = research["engine"]
     store.db.execute(f"SET memory_limit={qs(engine['memory_limit'])}")
@@ -307,7 +307,9 @@ def evaluate_factors(store, start=None, end=None, factor_ids=None, process_ids=N
         raise ValueError("Empty evaluation range after the out-of-sample clamp")
     processes = process_ids or [p["process_id"] for p in research["preprocessing"]["processes"]]
     primary = set(research["evaluation"]["segment_horizons"])
-    universes = research["preprocessing"]["universes"]
+    if custom_universe_id is not None and merge_existing:
+        raise ValueError("Custom-universe evaluation requires an isolated output root")
+    universes = [custom_universe_id] if custom_universe_id is not None else research["preprocessing"]["universes"]
     existing = {}
     if merge_existing:
         for name in ("factor_ic_daily", "factor_quantile_return", "factor_summary"):
@@ -334,6 +336,7 @@ def evaluate_factors(store, start=None, end=None, factor_ids=None, process_ids=N
 
     processed = store.output_relation("l3", "factor_processed")
     factor_values = store.output_relation("l3", "factor_value")
+    market_cap = market_cap_relation or factor_values
     labels = store.output_relation("l3", "forward_return")
     calendar = store.output_relation("l1", "daily_calendar")
     index_members = store.output_relation("l3", "daily_index_member")
@@ -366,7 +369,7 @@ def evaluate_factors(store, start=None, end=None, factor_ids=None, process_ids=N
                     FROM (SELECT * FROM {processed} WHERE factor_id={qs(factor_id)}
                           AND process_id={qs(process_id)} AND universe_id={qs(universe_id)}) p
                     JOIN {calendar} c ON c.trade_date=p.trade_date
-                    LEFT JOIN (SELECT trade_date, ts_code, value FROM {factor_values}
+                    LEFT JOIN (SELECT trade_date, ts_code, value FROM {market_cap}
                                WHERE factor_id='log_circ_mv') mv
                       ON mv.trade_date=p.trade_date AND mv.ts_code=p.ts_code
                     {' '.join(label_joins)}
@@ -490,7 +493,7 @@ def evaluate_factors(store, start=None, end=None, factor_ids=None, process_ids=N
     summary_result = store.publish(
         "l4", "factor_summary", publication_query("factor_summary", "evaluation_summary_frame"),
                                    ["factor_id", "universe_id", "process_id", "label_id",
-                                    "sample_mode", "segment_id", "period_id"], partition_by="factor_id")
+                                    "sample_mode", "segment_id", "period_id"])
     store.db.unregister("evaluation_summary_frame")
     records = []
     for factor_id in selected:

@@ -39,7 +39,7 @@ balancesheet 可用：字段是 VIP 的子集（85/94 列，缺 9 个扩展列�
     python scripts/download_financial_quarters.py --limit 20 # 试跑前 20 只
     python scripts/download_financial_quarters.py --finalize-only
 
-暂存与断点：data_middle/_tmp/financial_backfill/（可随时中断重跑）。
+暂存与断点：verification/stage1/tmp/financial_backfill/（可随时中断重跑）。
 """
 from __future__ import annotations
 
@@ -59,7 +59,7 @@ import pyarrow.parquet as pq
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DATA_ROOT = REPO_ROOT / 'data'
-STAGING = REPO_ROOT / 'data_middle' / '_tmp' / 'financial_backfill'
+STAGING = REPO_ROOT / 'verification' / 'stage1' / 'tmp' / 'financial_backfill'
 API_URL = 'https://api.tushare.pro'
 COMPRESSION = 'snappy'
 

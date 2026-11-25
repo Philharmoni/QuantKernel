@@ -61,6 +61,9 @@ def validate_contract(config: dict, registry: dict) -> list[str]:
         errors.append("Step 0 contract is not frozen")
     if not config["approval_scope"]["approved_steps"] == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14]:
         errors.append("Approved scope must be Steps 0 through 10 and Steps 12-14; Step 11 remains blocked")
+    run_group = config["delivery"].get("active_run_group", "")
+    if not run_group or run_group in {".", ".."} or "/" in run_group or "\\" in run_group:
+        errors.append("Active run group must be one safe strategy directory name")
     for key in ("oos_access", "network_download", "modify_stage1_stage2", "real_data_read"):
         if config["approval_scope"][key] is not False:
             errors.append(f"Forbidden approval: {key}")
@@ -169,12 +172,13 @@ def create_protection_manifest(project_root: Path = PROJECT_ROOT) -> dict:
             if is_excluded(relative) or any(part in {"__pycache__", ".pytest_cache"} for part in relative.parts):
                 continue
             entries[relative.as_posix()] = file_sha256(path)
-    return {"version": 1, "scope": "before_stage3_changes", "files": entries,
+    return {"version": 1, "scope": protected.get("scope", "before_stage3_changes"), "files": entries,
             "manifest_sha256": canonical_hash(entries)}
 
 
 def write_protection_manifest(project_root: Path = PROJECT_ROOT) -> dict:
-    target = project_root / "configs/stage3_protected_hashes.json"
+    config = yaml.safe_load((project_root / "configs/strategy_research.yaml").read_text(encoding="utf-8"))
+    target = project_root / config["protected_scope"]["hashes_file"]
     if target.exists():
         raise FileExistsError("Protected baseline is append/immutable; verify it instead of regenerating")
     result = create_protection_manifest(project_root)
@@ -183,7 +187,10 @@ def write_protection_manifest(project_root: Path = PROJECT_ROOT) -> dict:
 
 
 def verify_protected_hashes(project_root: Path = PROJECT_ROOT, manifest_path: Path | None = None) -> dict:
-    target = manifest_path or project_root / "configs/stage3_protected_hashes.json"
+    if manifest_path is None:
+        config = yaml.safe_load((project_root / "configs/strategy_research.yaml").read_text(encoding="utf-8"))
+        manifest_path = project_root / config["protected_scope"]["hashes_file"]
+    target = manifest_path
     saved = json.loads(target.read_text(encoding="utf-8"))
     differences = []
     for name, expected in saved["files"].items():
@@ -196,7 +203,7 @@ def verify_protected_hashes(project_root: Path = PROJECT_ROOT, manifest_path: Pa
 
 
 def read_stage2_acceptance_metadata(project_root: Path = PROJECT_ROOT) -> dict:
-    path = project_root / "data_middle/verification/stage2_quality_gate.json"
+    path = project_root / "factor_research/verification/stage2_quality_gate.json"
     report = json.loads(path.read_text(encoding="utf-8"))
     if report.get("passed") is not True or report.get("failures"):
         raise ContractError("Stage 2 acceptance metadata is not passed")

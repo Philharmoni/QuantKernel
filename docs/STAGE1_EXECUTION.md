@@ -2,6 +2,8 @@
 
 验收按 Step 0–11 严格顺序进行，未通过当前步骤不得执行后续步骤。2026-09 改进轮（namechange/stk_limit/日历扩展）的记录见文末"改进轮 V1.1"一节。
 
+> 2026-11-19 目录重构：现行 Stage 1 数据位于 `data_middle/l0-l2`，Stage 1 验收证据位于 `verification/stage1/`。下文历史记录中的 `data_middle/verification/` 是执行当时的位置。
+
 | 步骤 | 状态 | 证据 |
 |---|---|---|
 | 0 路径与工程约定 | 通过 | 路径检查成功；`tests/test_paths.py` 5 项通过；原始/派生数据未被 Git 跟踪 |
@@ -17,9 +19,28 @@
 | 10 研究样本空间 | 通过；V1.1 起三个 ex_st 样本激活 | 10+3 项测试；all_a 9,414,104 成员证券日；退市前 288,376 行保留 |
 | 11 统一质量与阶段验收 | 本地通过；服务器小区间验证按用户要求 deferred | 全量测试 168 项通过；证据见 `verification/` |
 
+## 自定义每日研究股票池（2026-11-24）
+
+- `scripts/build_custom_universe.py` 接收成员 CSV/Parquet，必须包含 `trade_date`、`ts_code`；每行表示该股票当日属于股票池，不跨日前向填充。输入的 `stock_name` 可省略，输出始终使用 `daily_stock_state.historical_name`。
+- 独立发布 `l2/custom_research_universe` 与 `l2/custom_research_universe_config`，成员表严格包含 `trade_date,ts_code,stock_name,universe_id,is_in_universe` 五列。独立校验写入 `verification/stage1/stages/custom_research_universe.json`，不改变正式九表及其质量门。
+- 同一 ID、同一输入可幂等重建；同 ID 输入变化会被拒绝，须使用新 ID，避免静默改变历史研究口径。
+- 独立构建示例：`python scripts/build_custom_universe.py members.csv --universe-id my_pool_v1`。
+- 完整 Stage 1 重建也可在正式 `research_universe` 后挂接：同时传入 `--custom-universe-file members.csv --custom-universe-id my_pool_v1`。
+- 2026-11-25 起 `build_custom_research_universe()` 同时接受 `input_path=` 和 `relation=`，二者二选一。自己的筛选代码可在同一个 DuckDB 连接中直接发布内存结果，不再生成中间成员文件；文件 CLI 保持兼容。
+
+```python
+with Store(load_paths()) as store:
+    store.db.execute("""CREATE TEMP VIEW my_members AS
+        SELECT trade_date, ts_code FROM ... WHERE ...""")
+    build_custom_research_universe(
+        store, relation="my_members", universe_id="my_pool_v1")
+```
+
+- 文件模式以文件内容哈希保护不可变性；relation 模式以主键排序后的成员内容哈希保护。两种方式都自动补充历史名称、生成最终 Parquet 和 manifest。
+
 ## Step 0
 
-默认根为项目内 `data/`、`data_middle/`；可选服务器配置和环境覆盖。
+默认根为项目内 `data/`、`data_middle/`、`factor_research/`、`strategy_research/`、`verification/`；可选服务器配置和环境覆盖。
 输入输出目录须互不包含。缺失原始目录、输出越界均立即报错。
 保留用户原有忽略规则，仅补充派生/大文件规则并修正过时注释。
 
@@ -27,7 +48,7 @@
 
 `python scripts/verify_raw_data.py --checksums` 只读遍历原始文件，保存路径、
 大小、修改时间与 SHA-256，并解码每张关键表的一份原始 Parquet。
-清单保存在被 Git 忽略的 `data_middle/verification/`。
+清单保存在被 Git 忽略的 `verification/stage1/`。
 
 服务器实测（2026-09-12）：71 个一级目录、109,320 个文件、
 7,998,006,450 字节，即 8.00 GB / 7.45 GiB。计划中的约 7.7GB 是近似值，

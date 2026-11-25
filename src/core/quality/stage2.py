@@ -13,13 +13,14 @@ import re
 
 from core.config.paths import PROJECT_ROOT
 from core.config.settings import load_settings
-from core.data.store import date_sql, json_text, qi, qs
+from core.data.store import date_sql, json_text, qi, qs, stored_artifact_sha256
 from core.factor.entry import (check_factor_label_isolation, check_no_raw_access,
                                check_stage2_entry)
 from core.factor.registry import factor_map
 from core.factor.truncate import check_truncation_invariance
 from core.evaluation.trial import read_trial_log
 from core.quality.checks import file_sha256
+from core.quality.verification import verification_metadata, verification_mode
 
 
 ARTIFACTS = {
@@ -82,7 +83,11 @@ def check_architecture():
             "scanned_stage2_families": ["industry", "benchmark", "label", "factor", "preprocess", "evaluation"]}
 
 
-def check_layering(store, artifacts=None, deep_primary_keys=False):
+def check_layering(store, artifacts=None, deep_primary_keys=False, verification="standard",
+                   verify_files: bool | None = None):
+    mode = verification_mode(verification)
+    verify_files = mode == "audit" if verify_files is None else verify_files
+    deep_primary_keys = deep_primary_keys or mode == "audit"
     artifacts = artifacts or ARTIFACTS
     failures, historical = [], {}
     tables = {}
@@ -90,10 +95,10 @@ def check_layering(store, artifacts=None, deep_primary_keys=False):
         layer, name = artifact.split("/")
         try:
             manifest_path = store.paths.output(layer, name, "manifest.json")
-            part_path = store.paths.output(layer, name, "part-00000.parquet")
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             relation = store.output_relation(layer, name)
-            actual_sha = file_sha256(part_path)
+            actual_sha = (stored_artifact_sha256(store.paths.output(layer, name))
+                          if verify_files else manifest["sha256"])
             if actual_sha != manifest["sha256"]:
                 failures.append(_failure("file_sha256", artifact,
                                          {"manifest": manifest["sha256"], "actual": actual_sha}))
@@ -139,12 +144,14 @@ def check_layering(store, artifacts=None, deep_primary_keys=False):
                 if null:
                     failures.append(_failure("null_primary_key", artifact, expected_key))
             tables[artifact] = {"rows": rows, "sha256": actual_sha, "primary_key": expected_key,
+                                "file_hash_verified": verify_files,
                                 "lineage": "incremental_mixed" if artifact in INCREMENTAL_MIXED else "strict"}
         except Exception as error:
             failures.append(_failure("unreadable_artifact", artifact, str(error)))
     return {"passed": not failures, "failures": failures, "tables": tables,
             "historical_upstream_references": historical,
-            "deep_primary_keys": deep_primary_keys}
+            "deep_primary_keys": deep_primary_keys, "file_hash_verified": verify_files,
+            **verification_metadata(mode)}
 
 
 def check_pit(store, config_root=None):
@@ -245,40 +252,48 @@ def check_oos_status(store):
             "report_file_count": len(report_manifest["files"])}
 
 
-def check_repeatability(store):
+def check_repeatability(store, verification="standard"):
+    mode = verification_mode(verification)
     failures, comparisons = [], {}
-    stage1_path = store.paths.output("verification", "repeatability.json")
-    try:
-        stage1 = json.loads(stage1_path.read_text(encoding="utf-8"))
-        comparisons["stage1"] = {"differences": stage1["differences"]}
-        if stage1["differences"]:
-            failures.append(_failure("stage1_repeatability", "verification/repeatability", stage1["differences"]))
-    except Exception as error:
-        failures.append(_failure("stage1_repeatability", "verification/repeatability", str(error)))
-    for step, (roots, artifacts) in REPEAT_SPECS.items():
-        for layer, name in artifacts:
-            try:
-                manifests = [json.loads(store.paths.middle_root.joinpath(root, layer, name, "manifest.json").read_text())
-                             for root in roots]
-                same = manifests[0]["rows"] == manifests[1]["rows"] and manifests[0]["sha256"] == manifests[1]["sha256"]
-                comparisons[f"{step}/{layer}/{name}"] = {"rows": manifests[0]["rows"], "identical": same}
-                if not same:
-                    failures.append(_failure("repeatability", f"{step}/{layer}/{name}", "row or sha mismatch"))
-            except Exception as error:
-                failures.append(_failure("repeatability", f"{step}/{layer}/{name}", str(error)))
-    try:
-        roots = [store.paths.middle_root / name / "l4" / "factor_report" for name in REPEAT_STEP9_ROOTS]
-        manifests = [json.loads((root / "manifest.json").read_text()) for root in roots]
-        same = manifests[0] == manifests[1]
-        for filename, digest in manifests[0]["files"].items():
-            actual = [file_sha256(root / filename) for root in roots]
-            same = same and actual == [digest, digest]
-        comparisons["step9/factor_report"] = {"files": len(manifests[0]["files"]), "identical": same}
-        if not same:
-            failures.append(_failure("repeatability", "step9/factor_report", "manifest or file sha mismatch"))
-    except Exception as error:
-        failures.append(_failure("repeatability", "step9/factor_report", str(error)))
-    return {"passed": not failures, "failures": failures, "comparisons": comparisons}
+    stage1_executed = mode != "fast"
+    if stage1_executed:
+        stage1_path = store.paths.output("verification", "repeatability.json")
+        try:
+            stage1 = json.loads(stage1_path.read_text(encoding="utf-8"))
+            comparisons["stage1"] = {"differences": stage1["differences"]}
+            if stage1["differences"]:
+                failures.append(_failure("stage1_repeatability", "verification/stage1/repeatability", stage1["differences"]))
+        except Exception as error:
+            failures.append(_failure("stage1_repeatability", "verification/stage1/repeatability", str(error)))
+    if mode == "audit":
+        for step, (roots, artifacts) in REPEAT_SPECS.items():
+            for layer, name in artifacts:
+                try:
+                    manifests = [json.loads(store.paths.factor_root.joinpath(
+                        root, "factor_research", layer, name, "manifest.json").read_text()) for root in roots]
+                    same = manifests[0]["rows"] == manifests[1]["rows"] and manifests[0]["sha256"] == manifests[1]["sha256"]
+                    comparisons[f"{step}/{layer}/{name}"] = {"rows": manifests[0]["rows"], "identical": same}
+                    if not same:
+                        failures.append(_failure("repeatability", f"{step}/{layer}/{name}", "row or sha mismatch"))
+                except Exception as error:
+                    failures.append(_failure("repeatability", f"{step}/{layer}/{name}", str(error)))
+        try:
+            roots = [store.paths.factor_root / name / "factor_research" / "l4" / "factor_report"
+                     for name in REPEAT_STEP9_ROOTS]
+            manifests = [json.loads((root / "manifest.json").read_text()) for root in roots]
+            same = manifests[0] == manifests[1]
+            for filename, digest in manifests[0]["files"].items():
+                actual = [file_sha256(root / filename) for root in roots]
+                same = same and actual == [digest, digest]
+            comparisons["step9/factor_report"] = {"files": len(manifests[0]["files"]), "identical": same}
+            if not same:
+                failures.append(_failure("repeatability", "step9/factor_report", "manifest or file sha mismatch"))
+        except Exception as error:
+            failures.append(_failure("repeatability", "step9/factor_report", str(error)))
+    return {"passed": not failures, "failures": failures, "comparisons": comparisons,
+            "stage1_executed": stage1_executed, "stage2_executed": mode == "audit",
+            "status": "executed" if mode == "audit" else "stage2_repeat_not_requested",
+            **verification_metadata(mode)}
 
 
 def check_documentation(path=None):
@@ -325,16 +340,20 @@ def _markdown(report):
 
 
 def run_stage2_quality_gate(store, truncation_dates=None, deep_primary_keys=False, docs_path=None,
-                            config_root=None):
+                            config_root=None, verification="standard", entry_result=None):
+    mode = verification_mode(verification)
     research = load_settings("factor_research.yaml", config_root)
     dates = truncation_dates if truncation_dates is not None else research["quality_gate"]["truncation_dates"]
     checks = {"architecture": check_architecture()}
     try:
-        entry = check_stage2_entry(store, config_root)
-        checks["stage1_entry"] = {"passed": True, "failures": [], "bundle_sha256": entry["bundle_sha256"]}
+        entry = entry_result or check_stage2_entry(store, config_root, verification=mode)
+        checks["stage1_entry"] = {"passed": True, "failures": [], "bundle_sha256": entry["bundle_sha256"],
+                                  "file_hash_verified": entry["file_hash_verified"],
+                                  **verification_metadata(entry["verification"])}
     except Exception as error:
         checks["stage1_entry"] = {"passed": False, "failures": [_failure("stage2_entry", "stage1", str(error))]}
-    checks["layering_lineage"] = check_layering(store, deep_primary_keys=deep_primary_keys)
+    checks["layering_lineage"] = check_layering(
+        store, deep_primary_keys=deep_primary_keys, verification=mode)
     checks["pit"] = check_pit(store, config_root)
     if dates:
         logging.info("Unified truncation gate: %s", dates)
@@ -347,14 +366,15 @@ def run_stage2_quality_gate(store, truncation_dates=None, deep_primary_keys=Fals
     else:
         checks["truncation"] = {"passed": False, "failures": [_failure(
             "truncation_invariance", "factor_value", "no truncation date was executed")]}
-    checks["repeatability"] = check_repeatability(store)
+    checks["repeatability"] = check_repeatability(store, verification=mode)
     checks["out_of_sample"] = check_oos_status(store)
     checks["documentation"] = check_documentation(docs_path)
     failures = [failure for check in checks.values() for failure in check.get("failures", [])]
     report = {"passed": not failures, "code_hash": store.code_hash, "config_hash": store.config_hash,
               "research_registry_sha256": hashlib.sha256(json_text(
                   {"research": research, "registry": factor_map(config_root)}).encode("utf-8")).hexdigest(),
-              "checks": checks, "failures": failures, "boundaries": _boundaries(store)}
+              "checks": checks, "failures": failures, "boundaries": _boundaries(store),
+              **verification_metadata(mode)}
     store.write_json(("verification", "stage2_quality_gate.json"), report)
-    store.paths.output("verification", "stage2_quality_gate.md").write_text(_markdown(report), encoding="utf-8")
+    store.output("verification", "stage2_quality_gate.md").write_text(_markdown(report), encoding="utf-8")
     return report

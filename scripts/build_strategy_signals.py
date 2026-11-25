@@ -11,9 +11,10 @@ from core.strategy.signals import default_run_id, publish_signals
 def main():
     contract = load_stage3_contract()["config"]
     bundle = contract["delivery"]["active_input_bundle"]
-    bundle_root = PROJECT_ROOT / "data_middle/strategy_research/inputs" / bundle
+    root = PROJECT_ROOT / contract["delivery"]["root"]
+    bundle_root = root / "inputs" / bundle
     run_id = default_run_id()
-    output = PROJECT_ROOT / "data_middle/strategy_research/runs" / run_id
+    output = root / "runs" / run_id
     with SnapshotInputs(bundle_root) as inputs:
         result = publish_signals(inputs, output, contract, run_id=run_id)
         summary = inputs.db.execute("""SELECT count(*),sum(day_gate_pass::INT),

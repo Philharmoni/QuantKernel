@@ -9,25 +9,26 @@ from core.strategy.inputs import SnapshotInputs
 from core.strategy.robustness import prefix_comparison
 from core.strategy.robustness_build import Step13Builder
 from core.strategy.robustness_publish import TABLE_KEYS, default_step13_run_id, publish_step13
+from core.strategy.verification import repeat_metadata, resolve_repeat, table_repeat_mismatches
+from core.quality.verification import verification_mode
 
 
 def main():
+    mode = verification_mode()
     config = load_stage3_contract()["config"]
-    root = PROJECT_ROOT / "data_middle/strategy_research"
+    root = PROJECT_ROOT / config["delivery"]["root"]
     run_id = default_step13_run_id()
     run_root = root / "runs" / run_id
     manifest = json.loads((run_root / "manifest.json").read_text(encoding="utf-8"))
     repeat_root = root / "verification" / (run_id + "_repeat")
-    with SnapshotInputs(root / "inputs" / config["delivery"]["active_input_bundle"]) as inputs:
+    with SnapshotInputs(root / "inputs" / config["delivery"]["active_input_bundle"], verification=mode) as inputs:
         def builder():
             return Step13Builder(inputs, root / "runs" / config["delivery"]["active_step4_run"],
                 root / "runs" / config["delivery"]["active_step5_run"],
                 root / "runs" / config["delivery"]["active_step7_run"], config)
 
-        if repeat_root.exists():
-            repeat = json.loads((repeat_root / "manifest.json").read_text(encoding="utf-8"))
-        else:
-            repeat = publish_step13(builder(), repeat_root, repeat_root.name)
+        repeat, repeat_status = resolve_repeat(repeat_root, lambda: publish_step13(
+            builder(), repeat_root, repeat_root.name), mode)
         db = inputs.db
         nav = f"read_parquet('{run_root}/l5/robustness_account_nav/part-00000.parquet')"
         stale = f"read_parquet('{run_root}/l5/stale_pressure_daily/part-00000.parquet')"
@@ -63,8 +64,7 @@ def main():
             and pit["future_read_blocked"]["error_type"] == "PermissionError"))
         observations = {
             "table_rows": {name: entry["rows"] for name, entry in manifest["tables"].items()},
-            "repeat_hash_mismatches": [table for table in TABLE_KEYS
-                if manifest["tables"][table]["sha256"] != repeat["tables"][table]["sha256"]],
+            "repeat_hash_mismatches": table_repeat_mismatches(manifest, repeat, TABLE_KEYS),
             "full_source_mismatch": int(full != source),
             "truncation_prefix_mismatch": truncation["mismatch_count"],
             "truncation_future_rows": truncation["variant_future_rows"],
@@ -112,7 +112,8 @@ def main():
     result = {"passed": not failures, "step": 13, "run_id": run_id, "failures": failures,
         "observations": observations, "accounting_mode": "adjusted_unit_proxy",
         "economic_promoted": False, "can_enter_step14": not failures, "can_enter_step11": False,
-        "r2_backtest_permitted": False, "confirmation_seen": False, "oos_accessed": False, "live_ready": False}
+        "r2_backtest_permitted": False, "confirmation_seen": False, "oos_accessed": False, "live_ready": False,
+        **repeat_metadata(mode, repeat_status)}
     target = run_root / "verification/step13_checks.json"
     target.parent.mkdir(exist_ok=True)
     target.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True, default=str) + "\n", encoding="utf-8")

@@ -18,6 +18,8 @@ from core.market.prices import build_adjusted_price
 from core.market.state import build_stock_state
 from core.market.trading import build_trade_status
 from core.quality.checks import Quality, check_component, check_data_quality, file_sha256
+from core.quality.verification import add_verification_argument, verification_metadata, verification_mode
+from core.universe.custom import build_custom_research_universe, validate_custom_research_universe
 from core.universe.research import build_research_universe
 
 
@@ -35,7 +37,12 @@ def main():
     parser.add_argument('--l0-scope', choices=['full', 'core'], default='full')
     parser.add_argument('--reuse-l0', action='store_true', help='Reuse profiles only when their source metadata and field contract still match')
     parser.add_argument('--record-run', default='latest', help='Save comparison evidence under verification/runs/NAME.json')
+    parser.add_argument('--custom-universe-file', help='Optional member CSV/Parquet built after the formal research universe')
+    parser.add_argument('--custom-universe-id', help='Immutable ID for --custom-universe-file')
+    add_verification_argument(parser)
     args = parser.parse_args()
+    if bool(args.custom_universe_file) != bool(args.custom_universe_id):
+        parser.error('--custom-universe-file and --custom-universe-id must be provided together')
     if not re.fullmatch(r'[A-Za-z0-9_-]+', args.record_run):
         parser.error('--record-run accepts only letters, digits, underscore and hyphen')
     logging.basicConfig(level=logging.INFO, format='%(message)s')
@@ -59,7 +66,8 @@ def main():
                 names = None if args.l0_scope == 'full' else sorted(n for n, spec in store.tables.items() if spec.get('stage1'))
                 profile_all(store, names)
                 store.write_json(('l0', 'input_signature.json'), before)
-            guard = Quality(store, args.start, args.end, args.l0_scope, True)
+            guard = Quality(store, args.start, args.end, args.l0_scope, True,
+                            verification=verification_mode(args.verification))
             guard.l0()
             if guard.report['failures']:
                 raise ValueError(f"L0 gate failed: {guard.report['failures']}")
@@ -79,19 +87,30 @@ def main():
             with Store(paths) as store:
                 result = builder(store)
                 manifests = [result] if 'table' in result else list(result.values())
-                # Every publisher rejects null/duplicate keys before replacing the artifact.
-                for manifest in manifests:
-                    if file_sha256(store.paths.output(manifest['layer'], manifest['table'], 'part-00000.parquet')) != manifest['sha256']:
-                        raise ValueError(f"{manifest['table']}: publication checksum mismatch")
                 check_component(store, stage_name, args.start, args.end, args.l0_scope)
                 stages.append({'stage': stage_name, 'passed': True, 'tables': {m['table']: m['rows'] for m in manifests},
                                'elapsed_seconds': round(time.perf_counter()-step_started, 3)})
                 store.write_json(('verification', 'build_status.json'), {'status': 'running', 'run': args.record_run, 'stages': stages})
             print(f'Passed {stage_name}: {stages[-1]["tables"]}', flush=True)
+        if args.custom_universe_file:
+            stage_name = 'custom_research_universe'
+            print(f'Building and validating {stage_name}', flush=True)
+            step_started = time.perf_counter()
+            with Store(paths) as store:
+                result = build_custom_research_universe(
+                    store, args.custom_universe_file, args.custom_universe_id,
+                    start=args.start, end=args.end)
+                quality = validate_custom_research_universe(store, args.custom_universe_id)
+                if not quality['passed']:
+                    raise ValueError(f"Custom universe validation failed: {quality['failures']}")
+                stages.append({'stage': stage_name, 'passed': True,
+                               'tables': {name: manifest['rows'] for name, manifest in result.items()},
+                               'elapsed_seconds': round(time.perf_counter() - step_started, 3)})
         stage_name = 'quality'
         print('Checking L0/L1/L2 quality, PIT, lineage and file integrity', flush=True)
         with Store(paths) as store:
-            report = check_data_quality(store, args.start, args.end, args.l0_scope)
+            report = check_data_quality(store, args.start, args.end, args.l0_scope,
+                                        verification=verification_mode(args.verification))
         after = metadata_signature(inventory(paths.data_root))
         raw_proof = {'passed': before == after, 'before': before, 'after': after,
                      'method': 'relative path, file size and mtime_ns; raw files only read'}
@@ -102,7 +121,8 @@ def main():
             raw_proof['passed'] = raw_proof['passed'] and raw_proof['unchanged_since_step1']
         with Store(paths) as store:
             store.write_json(('verification', 'raw_unchanged.json'), raw_proof)
-            refresh = Quality(store, args.start, args.end, args.l0_scope, True)
+            refresh = Quality(store, args.start, args.end, args.l0_scope, True,
+                              verification=verification_mode(args.verification))
             refresh.report = report
             if not raw_proof['passed']:
                 refresh.fail('raw_data', 'source_changed_during_build', [], [raw_proof])
@@ -111,6 +131,7 @@ def main():
                    'start': args.start, 'end': args.end, 'l0_scope': args.l0_scope,
                    'elapsed_seconds': round(time.perf_counter()-started, 3), 'stages': stages,
                    'tables': report['tables'], 'raw_signature': after,
+                   **verification_metadata(args.verification),
                    'l0_profiles': {p.stem: file_sha256(p) for p in sorted(paths.output('l0', 'profiles').glob('*.json'))}}
             store.write_json(('verification', 'runs', args.record_run + '.json'), run)
             store.write_json(('verification', 'build_status.json'), {'status': 'passed_supported_scope', **run})

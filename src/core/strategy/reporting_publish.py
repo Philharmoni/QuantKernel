@@ -19,7 +19,7 @@ def default_step9_run_id(project_root=PROJECT_ROOT, use_active=True):
         "registry": file_sha256(project_root / "configs/strategy_registry.yaml"),
         "code": {name: file_sha256(Path(__file__).with_name(name)) for name in
                  ("reporting_build.py", "reporting_publish.py")}}
-    return "step9_" + canonical_hash(identity)[:16]
+    return config["delivery"]["active_run_group"] + "/step9"
 
 
 def publish_step9(builder, output_root, run_id):
@@ -64,7 +64,8 @@ def publish_step9(builder, output_root, run_id):
         if count != distinct or count != 14:
             raise ValueError("Step 9 trial ledger key or coverage mismatch")
         files[str(target.relative_to(staging))] = file_sha256(target)
-        manifest = {"step": 9, "run_id": run_id, "status": "complete", "candidate_id": "c0_three_module_fixed",
+        manifest = {"step": 9, "run_id": run_id,
+            "run_hash": "step9_" + canonical_hash(files)[:16], "status": "complete", "candidate_id": "c0_three_module_fixed",
             "decision": "no_champion_no_promotion", "input_bundle": builder.inputs.manifest["bundle_id"],
             "economic_promoted": False, "r2_backtest_permitted": False, "real_share_account_ready": False,
             "live_ready": False, "confirmation_seen": False, "oos_accessed": False,

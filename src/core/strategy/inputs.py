@@ -1,14 +1,18 @@
 """Prepare and consume immutable, physically bounded Stage 3 inputs."""
 import json
 import os
+from collections import OrderedDict
 from pathlib import Path
 import re
 import shutil
+import threading
 
 import duckdb
 
 from core.config.paths import PROJECT_ROOT
+from core.data.store import factor_partition_relation, stored_artifact_sha256
 from core.strategy.contract import canonical_hash, file_sha256, load_stage3_contract, parse_ymd
+from core.quality.verification import verification_mode
 
 RESEARCH_ONLY = "l3/forward_return"
 PROTECTED_MIXED = {"l3/factor_value", "l3/factor_processed"}
@@ -106,13 +110,16 @@ def prepare_snapshot(project_root=PROJECT_ROOT):
     try:
         for artifact, rules in spec["source_tables"].items():
             layer, name = artifact.split("/")
-            source_dir = project_root / "data_middle" / layer / name
+            source_root = project_root / ("factor_research" if layer in {"l3", "l4"} else "data_middle")
+            source_dir = source_root / layer / name
             source_path = source_dir / "part-00000.parquet"
             source_manifest = json.loads((source_dir / "manifest.json").read_text(encoding="utf-8"))
-            actual_hash = file_sha256(source_path)
+            actual_hash = stored_artifact_sha256(source_dir)
             if actual_hash != source_manifest["sha256"] or source_manifest["primary_key"] != rules["key"]:
                 raise ValueError(f"Source integrity/key mismatch: {artifact}")
-            relation = f"read_parquet({quote_string(str(source_path))})"
+            relation = (factor_partition_relation(source_dir)
+                        if source_manifest.get("storage_layout") == "factor_id_partitioned_v1"
+                        else f"read_parquet({quote_string(str(source_path))})")
             columns = db.execute(f"DESCRIBE SELECT * FROM {relation}").fetchall()
             available = {row[0]: row[1] for row in columns}
             selected = rules.get("columns", list(available))
@@ -215,27 +222,61 @@ def prepare_snapshot(project_root=PROJECT_ROOT):
 
 
 class SnapshotInputs:
-    def __init__(self, bundle_root, project_root=PROJECT_ROOT):
+    _content_cache = OrderedDict()
+    _content_cache_lock = threading.Lock()
+    _content_cache_size = 32
+
+    def __init__(self, bundle_root, project_root=PROJECT_ROOT, verification="standard"):
         self.root = Path(bundle_root).resolve()
         self.project_root = Path(project_root).resolve()
-        if not self.root.is_relative_to(self.project_root / "data_middle/strategy_research/inputs") and not self.root.is_relative_to(self.project_root / "tests/fixtures/golden_stage3"):
+        self.verification = verification_mode(verification)
+        if not self.root.is_relative_to(self.project_root / "strategy_research/inputs") and not self.root.is_relative_to(self.project_root / "tests/fixtures/golden_stage3"):
             raise PermissionError("Snapshot root is outside the authorized input namespace")
-        self.manifest = json.loads((self.root / "manifest.json").read_text(encoding="utf-8"))
+        manifest_path = self.root / "manifest.json"
+        self.manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         if self.manifest.get("status") != "complete" and not self.manifest.get("fictional"):
             raise PermissionError("Input bundle is not complete")
         self.cutoff = self.manifest.get("cutoff", "20241231")
+        admission_digest = None
         admission = self.manifest.get("admission")
-        if admission and (not admission.get("passed") or file_sha256(self.root / admission["path"]) != admission["sha256"]):
-            raise ValueError("Bundle admission evidence is failed or has a hash mismatch")
+        if admission:
+            admission_digest = file_sha256(self.root / admission["path"])
+            if not admission.get("passed") or admission_digest != admission["sha256"]:
+                raise ValueError("Bundle admission evidence is failed or has a hash mismatch")
+        self._cache_key = (str(self.root), file_sha256(manifest_path), admission_digest)
+        self._content_verified = False
         if not self.manifest.get("fictional"):
-            for artifact, entry in self.manifest["tables"].items():
-                if file_sha256(self.root / entry["path"]) != entry["sha256"]:
-                    raise ValueError(f"Bundle file hash mismatch at admission: {artifact}")
+            self._ensure_content_verified(refresh=self.verification == "audit")
         self.db = duckdb.connect()
         self.read_log = []
 
+    def _ensure_content_verified(self, refresh=False):
+        if self.verification == "fast" or self._content_verified:
+            return
+        with self._content_cache_lock:
+            cached = self._cache_key in self._content_cache and not refresh
+            if cached:
+                self._content_cache.move_to_end(self._cache_key)
+        if cached:
+            self._content_verified = True
+            return
+        for artifact, entry in self.manifest["tables"].items():
+            if file_sha256(self.root / entry["path"]) != entry["sha256"]:
+                raise ValueError(f"Bundle file hash mismatch at admission: {artifact}")
+        with self._content_cache_lock:
+            self._content_cache[self._cache_key] = True
+            self._content_cache.move_to_end(self._cache_key)
+            while len(self._content_cache) > self._content_cache_size:
+                self._content_cache.popitem(last=False)
+        self._content_verified = True
+
     @classmethod
-    def from_fixture(cls, root, project_root=PROJECT_ROOT):
+    def clear_verification_cache(cls):
+        with cls._content_cache_lock:
+            cls._content_cache.clear()
+
+    @classmethod
+    def from_fixture(cls, root, project_root=PROJECT_ROOT, verification="standard"):
         root = Path(root)
         manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
         manifest.update(status="complete", cutoff="20241231", tables={})
@@ -252,8 +293,11 @@ class SnapshotInputs:
         instance = cls.__new__(cls)
         instance.root = root.resolve()
         instance.project_root = Path(project_root).resolve()
+        instance.verification = verification_mode(verification)
         instance.manifest = manifest
         instance.cutoff = manifest["cutoff"]
+        instance._cache_key = (str(instance.root), canonical_hash(manifest), None)
+        instance._content_verified = False
         instance.db = duckdb.connect()
         instance.read_log = []
         return instance
@@ -272,8 +316,7 @@ class SnapshotInputs:
             raise PermissionError(f"Table/domain not admitted: {artifact} {domain}")
         entry = self.manifest["tables"][artifact]
         path = self.root / entry["path"]
-        if file_sha256(path) != entry["sha256"]:
-            raise ValueError(f"Snapshot hash mismatch: {artifact}")
+        self._ensure_content_verified()
         self.read_log.append(artifact)
         reader = "read_csv" if path.suffix == ".csv" else "read_parquet"
         return f"{reader}({quote_string(str(path))})"

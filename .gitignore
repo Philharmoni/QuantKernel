@@ -2,6 +2,9 @@
 # 下载脚本产出的所有表数据（namechange/stk_limit/财务补数等）都在这些目录下，不进版本库。
 /data/
 /data_middle/
+/factor_research/
+/strategy_research/
+/verification/
 /data_sample/
 /data_supplement/
 nohup.out

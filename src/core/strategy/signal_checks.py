@@ -5,20 +5,23 @@ from pathlib import Path
 from core.config.paths import PROJECT_ROOT
 from core.strategy.contract import file_sha256, parse_ymd
 from core.strategy.inputs import SnapshotInputs, quote_string
+from core.quality.verification import verification_mode
 from core.strategy.signals import TABLE_KEYS, build_signal_views, publish_signals
+from core.strategy.verification import repeat_metadata, resolve_repeat, table_repeat_mismatches
 
 
-def check_signal_run(run_root, bundle_root, config, truncation_date="20200430", repeat_root=None):
+def check_signal_run(run_root, bundle_root, config, truncation_date="20200430", repeat_root=None, verification=None):
+    mode = verification_mode(verification)
     run_root = Path(run_root)
     run_manifest = json.loads((run_root / "manifest.json").read_text(encoding="utf-8"))
     failures = []
     observations = {}
-    with SnapshotInputs(bundle_root) as inputs:
+    with SnapshotInputs(bundle_root, verification=mode) as inputs:
         db = inputs.db
         for table, key in TABLE_KEYS.items():
             entry = run_manifest["tables"][table]
             path = run_root / entry["path"]
-            if file_sha256(path) != entry["sha256"]:
+            if mode == "audit" and file_sha256(path) != entry["sha256"]:
                 failures.append({"check": "hash", "table": table})
             relation = f"read_parquet({quote_string(str(path))})"
             fields = ",".join(key)
@@ -63,24 +66,23 @@ def check_signal_run(run_root, bundle_root, config, truncation_date="20200430", 
             observations["truncation_differences"][table] = difference
             if difference:
                 failures.append({"check": "truncation", "table": table, "count": difference})
-    if repeat_root is not None:
-        repeat_root = Path(repeat_root)
-        with SnapshotInputs(bundle_root) as repeat_inputs:
-            repeat = publish_signals(repeat_inputs, repeat_root, config, run_id=repeat_root.name)
-        observations["repeat_directory"] = str(repeat_root)
-        observations["repeat_hash_mismatches"] = []
-        for table in TABLE_KEYS:
-            if repeat["tables"][table]["sha256"] != run_manifest["tables"][table]["sha256"]:
-                observations["repeat_hash_mismatches"].append(table)
-        if observations["repeat_hash_mismatches"]:
-            failures.append({"check": "repeat_hash", "tables": observations["repeat_hash_mismatches"]})
+    def repeat_publisher():
+        with SnapshotInputs(bundle_root, verification=mode) as repeat_inputs:
+            return publish_signals(repeat_inputs, repeat_root, config, run_id=repeat_root.name)
+    repeat, repeat_status = resolve_repeat(
+        repeat_root, repeat_publisher, mode) if repeat_root is not None else (None, "not_requested")
+    observations["repeat_directory"] = str(repeat_root) if repeat is not None else None
+    observations["repeat_hash_mismatches"] = table_repeat_mismatches(run_manifest, repeat, TABLE_KEYS)
+    if observations["repeat_hash_mismatches"]:
+        failures.append({"check": "repeat_hash", "tables": observations["repeat_hash_mismatches"]})
     return {"passed": not failures, "step": 3, "run_id": run_manifest["run_id"],
             "failures": failures, "observations": observations,
-            "research_labels_read": False, "live_ready": False}
+            "research_labels_read": False, "live_ready": False,
+            **repeat_metadata(mode, repeat_status)}
 
 
-def record_signal_checks(run_root, bundle_root, config, truncation_date="20200430", repeat_root=None):
-    result = check_signal_run(run_root, bundle_root, config, truncation_date, repeat_root)
+def record_signal_checks(run_root, bundle_root, config, truncation_date="20200430", repeat_root=None, verification=None):
+    result = check_signal_run(run_root, bundle_root, config, truncation_date, repeat_root, verification)
     target = Path(run_root) / "verification/step3_checks.json"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")

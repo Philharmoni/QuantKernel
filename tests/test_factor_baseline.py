@@ -82,6 +82,9 @@ def _value(store, ts_code, trade_date, factor_id):
 
 
 def test_registry_has_all_baseline_factors_with_complete_metadata():
+    raw = yaml.safe_load((PROJECT_ROOT / "configs" / "factor_registry.yaml").read_text(encoding="utf-8"))
+    assert "factors" not in raw and "registry_version" not in raw
+    assert list(raw) == ALL_FACTOR_IDS + COMPOSITE_FACTOR_IDS
     registry = load_factor_registry()
     ids = [f["factor_id"] for f in registry["factors"]]
     assert ids == ALL_FACTOR_IDS + COMPOSITE_FACTOR_IDS

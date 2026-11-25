@@ -11,7 +11,7 @@ from core.strategy.robustness_publish import default_step13_run_id, publish_step
 
 def main():
     config = load_stage3_contract()["config"]
-    root = PROJECT_ROOT / "data_middle/strategy_research"
+    root = PROJECT_ROOT / config["delivery"]["root"]
     run_id = default_step13_run_id(use_active=False)
     with SnapshotInputs(root / "inputs" / config["delivery"]["active_input_bundle"]) as inputs:
         builder = Step13Builder(inputs, root / "runs" / config["delivery"]["active_step4_run"],

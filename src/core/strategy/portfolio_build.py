@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 
-from core.strategy.contract import file_sha256
+from core.strategy.contract import canonical_hash, file_sha256
 from core.strategy.inputs import quote_string
 from core.strategy.portfolio import (TABLE_KEYS, make_orders, reference_profile,
                                      select_with_buffer, solve_targets)
@@ -198,7 +198,9 @@ def publish_step4(builder, output_root, run_id):
         manifests[table] = {"path": f"l4/{table}/part-00000.parquet", "primary_key": key,
                             "rows": count, "schema": schema, "sha256": file_sha256(target)}
         (target.parent / "manifest.json").write_text(json.dumps(manifests[table], indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    identity = {"step": 4, "run_id": run_id, "input_bundle": builder.inputs.manifest["bundle_id"],
+    identity = {"step": 4, "run_id": run_id,
+                "run_hash": "step4_" + canonical_hash(manifests)[:16],
+                "input_bundle": builder.inputs.manifest["bundle_id"],
                 "reference_state": "previous_target_weights_not_actual_fills", "research_labels_read": False,
                 "input_read_log": builder.inputs.read_log, "tables": manifests}
     (output_root / "manifest.json").write_text(json.dumps(identity, ensure_ascii=False, indent=2, sort_keys=True, default=str) + "\n", encoding="utf-8")
