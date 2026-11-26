@@ -1,7 +1,7 @@
 # Baseline factor registry (plan Step 5). Each top-level factor_id is the single
 # source of truth for that factor's formula, inputs, lookback, min_periods, direction,
 # unit and PIT semantics. Changing a formula requires bumping that factor's
-# version and recording it in docs/STAGE2_EXECUTION.md.
+# version and recording it in docs/STAGE2_ACCEPTANCE.md.
 # Shared conventions referenced by the entries below:
 #   prices      = L1 daily_adjusted_price (trade_date <= T only)
 #   ttm         = L1 ttm_financial, latest visible version per end_date with

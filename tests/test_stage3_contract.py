@@ -5,8 +5,9 @@ from pathlib import Path
 import pytest
 
 from core.strategy.contract import (ContractError, architecture_violations, assert_accounting_allowed,
-                                    assert_date_allowed, assert_label_scope, load_stage3_contract,
-                                    read_stage2_acceptance_metadata, verify_protected_hashes)
+                                    assert_date_allowed, assert_label_scope, create_protection_manifest,
+                                    load_stage3_contract, read_stage2_acceptance_metadata,
+                                    verify_protected_hashes)
 
 
 @pytest.fixture
@@ -90,6 +91,47 @@ def test_protected_hash_guard_detects_change(tmp_path):
     result = verify_protected_hashes(tmp_path, saved)
     assert result == {"passed": False, "checked_files": 1,
                       "differences": [{"path": "protected.txt", "reason": "changed"}]}
+
+
+def test_contract_loader_does_not_require_markdown(tmp_path):
+    (tmp_path / "configs").mkdir()
+    for name in ("strategy_research.yaml", "strategy_registry.yaml"):
+        (tmp_path / "configs" / name).write_text(Path("configs", name).read_text(encoding="utf-8"),
+                                                 encoding="utf-8")
+    loaded = load_stage3_contract(tmp_path)
+    assert loaded["config"]["status"] == "frozen_step_0"
+    assert "plan_contract_sha256" not in loaded["config"]
+
+
+def test_protected_hash_guard_ignores_but_does_not_rewrite_markdown(tmp_path):
+    markdown = tmp_path / "spec.md"
+    protected = tmp_path / "protected.txt"
+    markdown.write_text("old")
+    protected.write_text("original")
+    from core.strategy.contract import file_sha256
+    saved = tmp_path / "saved.json"
+    saved.write_text(json.dumps({"files": {"spec.md": file_sha256(markdown),
+                                           "protected.txt": file_sha256(protected)}}))
+    markdown.unlink()
+    assert verify_protected_hashes(tmp_path, saved) == {"passed": True, "checked_files": 1,
+                                                        "differences": []}
+    protected.write_text("changed")
+    assert verify_protected_hashes(tmp_path, saved)["differences"] == [
+        {"path": "protected.txt", "reason": "changed"}]
+
+
+def test_protection_manifest_excludes_nested_markdown(tmp_path):
+    (tmp_path / "configs").mkdir()
+    (tmp_path / "docs/specs").mkdir(parents=True)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "README.md").write_text("root")
+    (tmp_path / "docs/specs/spec.md").write_text("nested")
+    (tmp_path / "docs/rules.yaml").write_text("rule: true")
+    (tmp_path / "src/rule.py").write_text("pass")
+    (tmp_path / "configs/strategy_research.yaml").write_text(
+        "protected_scope:\n  scope: test\n  paths: [README.md, docs, src]\n  excludes: []\n")
+    result = create_protection_manifest(tmp_path)
+    assert set(result["files"]) == {"docs/rules.yaml", "src/rule.py"}
 
 
 def test_registry_and_config_reject_unapproved_candidate(contract):

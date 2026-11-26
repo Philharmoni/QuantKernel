@@ -297,7 +297,7 @@ def check_repeatability(store, verification="standard"):
 
 
 def check_documentation(path=None):
-    path = Path(path or PROJECT_ROOT / "docs" / "STAGE2_EXECUTION.md")
+    path = Path(path or PROJECT_ROOT / "docs" / "STAGE2_ACCEPTANCE.md")
     try:
         text = path.read_text(encoding="utf-8")
         present = {int(value) for value in re.findall(r"^## Step\s+(\d+)", text, re.M)}

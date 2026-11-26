@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""补充下载财务缺失季度（STAGE1_NEXT_IMPROVEMENTS.md 改进项 4）。
+"""补充下载财务缺失季度（历史验收见 docs/STAGE1_ACCEPTANCE.md）。
 
 背景
 ----

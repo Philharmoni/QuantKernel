@@ -76,7 +76,7 @@ def test_repeatability_compares_stage1_and_step7_to_9_evidence(tmp_path, golden_
 
 
 def test_documentation_requires_all_eleven_steps(tmp_path):
-    path = tmp_path / "STAGE2_EXECUTION.md"
+    path = tmp_path / "STAGE2_ACCEPTANCE.md"
     path.write_text("\n".join(f"## Step {step}：x" for step in range(11)), encoding="utf-8")
     assert check_documentation(path)["passed"]
     path.write_text("## Step 0：x\n## Step 10：x", encoding="utf-8")

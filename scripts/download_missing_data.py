@@ -3,7 +3,7 @@
 
 背景
 ----
-Stage 1 因原始数据表缺失而挂起的能力（见 STAGE1_NEXT_IMPROVEMENTS.md 前 3 点）：
+Stage 1 因原始数据表缺失而挂起的能力（历史验收见 docs/STAGE1_ACCEPTANCE.md）：
 
 * 历史 ST / 名称变更 / 退市整理期：官方 `stock_st`、`st`、`bak_basic` 三个接口
   该账号无权限（错误码 40203），改用 `namechange`。`namechange` 提供带

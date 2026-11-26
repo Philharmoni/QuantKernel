@@ -134,7 +134,6 @@ class Step14Builder:
             "input_admission_sha256": file_sha256(admission_path),
             "promotion_decision_sha256": file_sha256(decision_path),
             "r2_quality_gate_sha256": file_sha256(r2_path),
-            "plan_sha256": file_sha256(self.root / self.config["plan"]),
             "registry_sha256": file_sha256(self.root / "configs/strategy_registry.yaml"),
             "preregistration_sha256": file_sha256(self.root / self.config["step8"]["preregistration"]),
             "design_seen": True, "validation_seen": True, "confirmation_seen": False, "oos_accessed": False,

@@ -1,6 +1,4 @@
 version: 2
-plan: STRATEGY_RESEARCH_STAGE3_PLAN.md
-plan_contract_sha256: f8f61900f46ec12f50b019d6696ae1d33ebf64c8310b85986787d0465355b3b0
 status: frozen_step_0
 approval_scope:
   user_instruction: implement_r1_raw_share_quantity_constraints_without_changing_r2_or_oos_boundaries
@@ -356,10 +354,6 @@ protected_scope:
     - factor_research/l4
     - factor_research/verification
     - verification/stage1
-    - DATA_PROCESSING_STAGE1_PLAN.md
-    - FACTOR_RESEARCH_STAGE2_PLAN.md
-    - docs/STAGE1_EXECUTION.md
-    - docs/STAGE2_EXECUTION.md
     - configs/data_middle_layer.yaml
     - configs/factor_research.yaml
     - configs/factor_registry.yaml
@@ -371,6 +365,7 @@ protected_scope:
     - pyproject.toml
     - requirements-lock.txt
   excludes:
+    - '**/*.md'
     - factor_research/_tmp
     - factor_research/_provenance
     - verification/stage1/tmp

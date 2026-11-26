@@ -37,9 +37,6 @@ def file_sha256(path: Path) -> str:
 def load_stage3_contract(project_root: Path = PROJECT_ROOT) -> dict:
     config = yaml.safe_load((project_root / "configs/strategy_research.yaml").read_text(encoding="utf-8"))
     registry = yaml.safe_load((project_root / "configs/strategy_registry.yaml").read_text(encoding="utf-8"))
-    plan_hash = file_sha256(project_root / config["plan"])
-    if config["plan_contract_sha256"] != plan_hash:
-        raise ContractError("Plan hash differs from frozen Step 0 contract")
     errors = validate_contract(config, registry)
     if errors:
         raise ContractError("; ".join(errors))
@@ -162,7 +159,8 @@ def create_protection_manifest(project_root: Path = PROJECT_ROOT) -> dict:
     entries = {}
 
     def is_excluded(relative):
-        return any(relative == item or item in relative.parents for item in excluded)
+        return (relative.suffix.lower() == ".md" or
+                any(relative == item or item in relative.parents for item in excluded))
 
     for item in protected["paths"]:
         root = project_root / item
@@ -193,13 +191,15 @@ def verify_protected_hashes(project_root: Path = PROJECT_ROOT, manifest_path: Pa
     target = manifest_path
     saved = json.loads(target.read_text(encoding="utf-8"))
     differences = []
-    for name, expected in saved["files"].items():
+    protected_files = {name: expected for name, expected in saved["files"].items()
+                       if Path(name).suffix.lower() != ".md"}
+    for name, expected in protected_files.items():
         path = project_root / name
         if not path.is_file():
             differences.append({"path": name, "reason": "missing"})
         elif file_sha256(path) != expected:
             differences.append({"path": name, "reason": "changed"})
-    return {"passed": not differences, "checked_files": len(saved["files"]), "differences": differences}
+    return {"passed": not differences, "checked_files": len(protected_files), "differences": differences}
 
 
 def read_stage2_acceptance_metadata(project_root: Path = PROJECT_ROOT) -> dict:

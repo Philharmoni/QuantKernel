@@ -159,15 +159,14 @@ exactly, so the calibration Pearson is **exactly 1.0**, `mean_diff = -1/60`
 and `tracking_error_daily = sqrt(1/1200)` (ddof=0). Exact values and formulas
 live in `expected.json` under `benchmark`.
 
-## What Step 1's test actually checks
+## What the Stage 1 fixture-contract test checks
 
 `tests/test_golden_stage2_fixture.py` runs the existing Stage 1 builders over
 this fixture and asserts the directly-observable facts above (suspension/
 delisting/limit-up rows land where expected, `available_date` resolves per
-the next-trading-day rule, the market-cap identity holds). It does **not**
-exercise any Stage 2 module — those don't exist yet — only the fixture's own
-internal consistency against `expected.json`. Each later step (2 through 9)
-adds its own tests against this same fixture as its module is implemented.
+the next-trading-day rule, the market-cap identity holds). This file remains
+an upstream fixture-consistency contract against `expected.json`; later
+Stage 2 modules have their own dedicated tests against this fixture.
 
 ## Step 1 formula-verification example (not derived from the entity panel)
 
@@ -183,16 +182,16 @@ formulas now frozen in `configs/factor_research.yaml`:
    the outlier, capped by `median +/- 5*MAD`). Neutralization against
    `log_circ_mv` is checked by **orthogonality property**, not by exact
    residual values (`sum(residual) ~= 0`, `sum(residual * log_circ_mv) ~= 0`,
-   within `repeatability.float_tolerance`) — the industry-dummy term is
-   deferred to Step 6 once Step 2's industry table exists, so this is a
-   partial/incomplete neutralization by construction.
-2. **Group performance (Sharpe / max drawdown / Calmar / win rate /
-   profit-loss ratio / long-short)**: a standalone 4-period return series,
-   unrelated to the 8-stock panel (that panel's returns are too degenerate —
-   mostly flat — to illustrate drawdown/Sharpe mechanics). Explicitly labeled
-   as a formula check; Step 7 will additionally validate these formulas
-   against this fixture's own real (if thin) multi-period panel once labels
-   and factors exist.
+   within `repeatability.float_tolerance`). The original formula fixture
+   deliberately omits the industry-dummy term and checks only size
+   residualization; full industry-neutral behavior is covered by the later
+   Step 6 preprocessing tests.
+   2. **Group performance (Sharpe / max drawdown / Calmar / win rate /
+    profit-loss ratio / long-short)**: a standalone 4-period return series,
+    unrelated to the 8-stock panel (that panel's returns are too degenerate —
+    mostly flat — to illustrate drawdown/Sharpe mechanics). Explicitly labeled
+    as a formula check; Step 7 tests additionally validate these formulas
+    against this fixture's own thin multi-period panel.
 3. **Newey-West t 值**：序列 `[1,2,3,4]`、`h=2`，Bartlett 滞后 1。
    手算 `gamma0=1.25`、`gamma1=0.3125`、长期方差
    `LRV=1.25+2*(1/2)*0.3125=1.5625`，因此

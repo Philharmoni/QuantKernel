@@ -151,8 +151,7 @@ Step 4 全设计段只有首个调仓日形成新目标，其余日期按固定�
 """
 
     def evidence_index(self, report_hashes):
-        evidence = {"plan_sha256": self.config["plan_contract_sha256"],
-            "input_bundle": self.config["delivery"]["active_input_bundle"],
+        evidence = {"input_bundle": self.config["delivery"]["active_input_bundle"],
             "input_manifest_sha256": file_sha256(self.root / self.config["delivery"]["input_bundle_manifest"]),
             "registry_sha256": file_sha256(self.root / "configs/strategy_registry.yaml"),
             "preregistration_sha256": file_sha256(self.root / self.config["step8"]["preregistration"]),

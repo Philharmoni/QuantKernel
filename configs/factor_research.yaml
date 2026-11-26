@@ -1,6 +1,6 @@
-# Stage 2 research conventions. Frozen per FACTOR_RESEARCH_STAGE2_PLAN.md section 4;
+# Stage 2 research conventions. See docs/specs/STAGE2_FACTOR_RESEARCH.md;
 # changing a value here after Step 1 fixtures are written requires a version bump
-# and a note in docs/STAGE2_EXECUTION.md, not a silent edit.
+# and a note in docs/STAGE2_ACCEPTANCE.md, not a silent edit.
 version: 1
 
 engine:
