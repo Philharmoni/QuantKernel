@@ -12,8 +12,8 @@ from core.strategy.contract import (architecture_violations, canonical_hash, fil
 
 
 def independent_repeat_complete(runs):
-    return all(item.get("verification", "audit") == "audit" and
-               item.get("repeat_status", "verified_existing") in {"executed", "verified_existing"}
+    return all(item.get("verification") == "audit" and
+               item.get("repeat_status") in {"executed", "verified_existing"}
                for item in runs.values())
 
 
@@ -57,9 +57,10 @@ class Step14Builder:
                 "manifest_sha256": file_sha256(manifest_path),
                 "verification_path": verification_path.relative_to(self.root).as_posix(),
                 "verification_sha256": verification_hash, "passed": verification.get("passed") is True,
-                "verification": verification.get("verification", "audit"),
-                "repeat_status": verification.get("repeat_status", "verified_existing")}
-        protected = verify_protected_hashes(self.root)
+                "verification": verification.get("verification"),
+                "repeat_status": verification.get("repeat_status")}
+        protected = (verify_protected_hashes(self.root) if self.verification == "audit" else
+                     {"passed": True, "status": "not_requested", "checked_files": 0, "differences": []})
         if not protected["passed"]:
             errors["protected_scope"] = protected["differences"]
         architecture = architecture_violations(self.root / "src/core")
@@ -85,6 +86,9 @@ class Step14Builder:
         if self.config["delivery"].get("r2_backtest_permitted") is not False \
                 or self.config["delivery"].get("can_enter_step11") is not False:
             errors.setdefault("delivery", []).append("r2_or_step11_opened")
+        repeat_complete = independent_repeat_complete(runs)
+        if self.verification == "audit" and not repeat_complete:
+            errors["independent_repeat"] = ["incomplete"]
         if errors:
             raise ValueError("Step 14 closeout evidence failed: " + json.dumps(errors, ensure_ascii=False, default=str))
         metrics = self._json(self.research_root / "runs" / self.config["delivery"]["active_step9_run"] /
@@ -92,7 +96,6 @@ class Step14Builder:
         account = "c0_three_module_fixed__executed_proxy_net"
         step4 = self._json(self.root / self.config["delivery"]["step4_verification"])["observations"]
         step13 = self._json(self.root / self.config["delivery"]["step13_verification"])["observations"]
-        repeat_complete = independent_repeat_complete(runs)
         result = {"step": 14, "closeout_status": "r1_complete_no_champion",
             **closeout_status(decision, r2_gate, True), "accounting_mode": "adjusted_unit_proxy",
             "fill_model": "proxy_not_observed", "design_seen": True, "validation_seen": True,

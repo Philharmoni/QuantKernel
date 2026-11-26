@@ -52,20 +52,23 @@ def check_signal_run(run_root, bundle_root, config, truncation_date="20200430", 
         for name, value in observations.items():
             if value:
                 failures.append({"check": name, "count": value})
-        cutoff = parse_ymd(truncation_date)
-        build_signal_views(inputs, config, as_of=truncation_date)
-        observations["truncation_date"] = cutoff.isoformat()
-        observations["truncation_differences"] = {}
-        for table in TABLE_KEYS:
-            published = f"read_parquet({quote_string(str(run_root / ('l3/' + table + '/part-00000.parquet')) )})"
-            difference = db.execute(f"""SELECT count(*) FROM (
-                (SELECT * FROM {table} EXCEPT ALL SELECT * FROM {published} WHERE trade_date<=DATE '{cutoff.isoformat()}')
-                UNION ALL
-                (SELECT * FROM {published} WHERE trade_date<=DATE '{cutoff.isoformat()}' EXCEPT ALL SELECT * FROM {table})
-            )""").fetchone()[0]
-            observations["truncation_differences"][table] = difference
-            if difference:
-                failures.append({"check": "truncation", "table": table, "count": difference})
+        if mode == "audit":
+            cutoff = parse_ymd(truncation_date)
+            build_signal_views(inputs, config, as_of=truncation_date)
+            observations["truncation_date"] = cutoff.isoformat()
+            observations["truncation_differences"] = {}
+            for table in TABLE_KEYS:
+                published = f"read_parquet({quote_string(str(run_root / ('l3/' + table + '/part-00000.parquet')) )})"
+                difference = db.execute(f"""SELECT count(*) FROM (
+                    (SELECT * FROM {table} EXCEPT ALL SELECT * FROM {published} WHERE trade_date<=DATE '{cutoff.isoformat()}')
+                    UNION ALL
+                    (SELECT * FROM {published} WHERE trade_date<=DATE '{cutoff.isoformat()}' EXCEPT ALL SELECT * FROM {table})
+                )""").fetchone()[0]
+                observations["truncation_differences"][table] = difference
+                if difference:
+                    failures.append({"check": "truncation", "table": table, "count": difference})
+        else:
+            observations["truncation_status"] = "not_requested"
     def repeat_publisher():
         with SnapshotInputs(bundle_root, verification=mode) as repeat_inputs:
             return publish_signals(repeat_inputs, repeat_root, config, run_id=repeat_root.name)

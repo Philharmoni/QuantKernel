@@ -217,6 +217,11 @@ def prepare_snapshot(project_root=PROJECT_ROOT):
     if not validation["passed"]:
         shutil.rmtree(work)
         raise RuntimeError(f"Snapshot admission failed: {validation['failures']}")
+    pointer = output_root / "active_input.json"
+    temporary = output_root / ".active_input.json.tmp"
+    temporary.write_text(json.dumps({"version": 1, "bundle_id": bundle_id},
+                                    ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    os.replace(temporary, pointer)
     shutil.rmtree(work)
     return json.loads((target_root / "manifest.json").read_text(encoding="utf-8"))
 

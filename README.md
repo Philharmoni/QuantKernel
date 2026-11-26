@@ -109,14 +109,10 @@ python scripts/check_paths.py
 # 只读核验原始文件及内容哈希
 python scripts/verify_raw_data.py --checksums
 
-# 完整构建并记录首次运行
-python scripts/build_stage1.py --record-run first
+# 单次完整构建；新设备不需要旧设备的验收目录
+python scripts/build_stage1.py --record-run rebuild
 
-# 复用未变化的 L0 画像，独立重建并比较
-python scripts/build_stage1.py --reuse-l0 --record-run repeat
-python scripts/compare_stage1_runs.py first repeat
-
-# 统一质量检查
+# 当前产物的统一质量检查
 python scripts/check_data_quality.py --l0-scope full
 ```
 
@@ -145,7 +141,7 @@ python scripts/check_data_quality.py --l0-scope full
 5. 使用同一逐因子源码重建正式 L3/L4，而不是复制实验结果。
 
 ```bash
-# 1. 计算因子值；end 会触发截断一致性检查
+# 1. 计算因子值；只有 audit 模式才额外执行截断重算
 python scripts/run_factor_experiment.py my_factor --start 20200101 --end 20241231
 
 # 2. 隔离评价
@@ -200,7 +196,24 @@ python scripts/evaluate_factor.py \
   → 敏感性、稳健性与收口
 ```
 
-主要入口如下；各构建环节配有相应的 `check_*.py` 验证脚本，预注册冻结和合约检查等独立入口除外：
+### 一键重建
+
+```bash
+# 新环境：按依赖顺序重建全部已实现 R1 步骤，失败即停
+python scripts/build_stage3.py --verification standard --record-run rebuild
+
+# 只查看步骤，不写入任何研究产物
+python scripts/build_stage3.py --dry-run
+
+# 已有活动产物：保留不可变结果，只复用并重新执行检查
+python scripts/build_stage3.py --verification standard --reuse-existing
+```
+
+一键脚本包含输入快照、信号、组合、执行、基准、D/V、预注册、报告、敏感性、稳健性和 R1 收口。Step 10 仅构建 **R2 负质量门**，不运行 R2 回测，也不执行 Step 11、确认段、正式 OOS 或实盘。运行状态写入 `strategy_research/verification/pipeline/`。
+
+默认模式要求目标运行产物尚不存在；在已有本地结果上复验时使用 `--reuse-existing`，或者为真正重建指定新的 `STRATEGY_RESEARCH_ROOT`。`audit` 模式会让各检查步骤额外执行独立重复和截断验收。
+
+单独入口如下；各构建环节配有相应的 `check_*.py` 验证脚本，预注册冻结和合约检查等独立入口除外：
 
 | 环节 | 构建或检查入口 | 关键产物/约束 |
 |---|---|---|
@@ -219,7 +232,7 @@ python scripts/evaluate_factor.py \
 | 稳健性 | `scripts/build_strategy_robustness.py` | 截断、未来扰动、PIT 与压力 |
 | R1 收口 | `scripts/build_strategy_closeout.py` | 活动证据对账和最终状态 |
 
-这些入口由 [configs/strategy_research.yaml](configs/strategy_research.yaml) 和 [configs/strategy_registry.yaml](configs/strategy_registry.yaml) 驱动，**不是可以无条件连续执行的一键命令**。新候选、输入快照、预注册、不可变目录和授权范围必须一致；不得通过覆盖历史 run、反复查看 V/C/OOS 或修改门槛来制造晋级。
+这些入口由 [configs/strategy_research.yaml](configs/strategy_research.yaml) 和 [configs/strategy_registry.yaml](configs/strategy_registry.yaml) 驱动。一键脚本只负责按顺序调用，不会自动放宽权限或覆盖不可变结果；新候选、输入快照、预注册、不可变目录和授权范围必须一致，不得通过反复查看 V/C/OOS 或修改门槛来制造晋级。
 
 当前 R1 已完成收口，但最终为 `no_champion_no_promotion`。R2、Step 11、2024 确认段、正式 OOS 和实盘仍关闭。
 
@@ -232,17 +245,17 @@ python -m pytest -q
 # Stage 2 标准质量门
 python scripts/check_stage2_quality.py --verification standard
 
-# Stage 3 合约、权限和保护文件
+# Stage 3 当前合约与权限；历史保护基线只在 audit 校验
 python scripts/check_stage3_contract.py
 ```
 
 | 验证级别 | 用途 |
 |---|---|
-| `fast` | 本地开发迭代，保留业务语义检查，减少文件和重复构建开销 |
-| `standard` | 默认研究模式，复用既有独立重复性证据，不伪造缺失证据 |
-| `audit` | 发布或冻结验收，执行完整哈希、深度主键和独立重复性检查 |
+| `fast` | 本地快速迭代，减少文件和独立验算开销 |
+| `standard` | 默认使用模式：单次构建，检查当前输入、Schema、PIT、权限、账务和 manifest，不要求旧设备或历史重复性证据 |
+| `audit` | 开发验收或发布冻结：额外执行整包测试、截断重算、独立重复构建及历史保护基线检查 |
 
-Stage 1/2 CLI 使用 `--verification`；Stage 3 检查入口读取 `QUANTKERNEL_VERIFICATION`。`repeat_status=not_requested` 只表示本轮未请求独立重复，不表示重复性已经通过。
+Stage 1/2 CLI 使用 `--verification`；Stage 3 检查入口读取 `QUANTKERNEL_VERIFICATION`。`repeat_status=not_requested` 表示本轮未请求独立重复，不妨碍 standard 使用，但也不宣称 audit 级重复性已经通过。
 
 ## 文档导航
 

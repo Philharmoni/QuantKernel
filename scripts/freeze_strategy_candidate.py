@@ -23,8 +23,10 @@ def main():
     code_hashes = {name: file_sha256(PROJECT_ROOT / "src/core/strategy" / name) for name in code_names}
     code_sha = canonical_hash(code_hashes)
     design_manifest = PROJECT_ROOT / config["delivery"]["step7_manifest"]
+    design = json.loads(design_manifest.read_text(encoding="utf-8"))
+    design_run_id = design.get("run_hash", design.get("run_id", step8["design_run_id"]))
     identity = {"candidate_id": step8["candidate_id"], "version": step8["candidate_version"],
-        "design_run_id": step8["design_run_id"], "design_manifest_sha256": file_sha256(design_manifest),
+        "design_run_id": design_run_id, "design_manifest_sha256": file_sha256(design_manifest),
         "config_sha256": config_sha, "code_bundle_sha256": code_sha,
         "validation_period": config["research_protocol"]["validation_period"],
         "economic_boundaries": step8["economic_boundaries"], "benchmark_ids": ["eligible_passive_net", "common_support_passive_net"]}

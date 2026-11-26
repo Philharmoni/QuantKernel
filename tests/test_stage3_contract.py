@@ -103,6 +103,20 @@ def test_contract_loader_does_not_require_markdown(tmp_path):
     assert "plan_contract_sha256" not in loaded["config"]
 
 
+def test_contract_loader_uses_local_active_input_pointer(tmp_path):
+    (tmp_path / "configs").mkdir()
+    for name in ("strategy_research.yaml", "strategy_registry.yaml"):
+        (tmp_path / "configs" / name).write_text(Path("configs", name).read_text(encoding="utf-8"),
+                                                 encoding="utf-8")
+    pointer = tmp_path / "strategy_research/inputs/active_input.json"
+    pointer.parent.mkdir(parents=True)
+    pointer.write_text(json.dumps({"version": 1, "bundle_id": "in_sample_new123"}), encoding="utf-8")
+    delivery = load_stage3_contract(tmp_path)["config"]["delivery"]
+    assert delivery["active_input_bundle"] == "in_sample_new123"
+    assert delivery["input_bundle_manifest"] == "strategy_research/inputs/in_sample_new123/manifest.json"
+    assert delivery["input_bundle_admission"] == "strategy_research/inputs/in_sample_new123/admission.json"
+
+
 def test_protected_hash_guard_ignores_but_does_not_rewrite_markdown(tmp_path):
     markdown = tmp_path / "spec.md"
     protected = tmp_path / "protected.txt"

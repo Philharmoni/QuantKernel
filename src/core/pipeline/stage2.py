@@ -1,9 +1,9 @@
 """Canonical, fail-fast Stage 2 rebuild from Stage 1 artifacts through Step 10.
 
-The orchestrator does not download data or touch out-of-sample evaluation. It
-also creates the bounded independent-run evidence required by the final quality
-gate, making a fresh-device run self-contained rather than dependent on old
-verification directories.
+The orchestrator does not download data or touch out-of-sample evaluation. A
+standard fresh-device run is self-contained and does not require old verification
+directories. Independent repeats, truncation rebuilds, and the full test suite are
+reserved for an explicitly requested audit.
 """
 import hashlib
 import json
@@ -43,7 +43,7 @@ from core.reference.membership import build_index_member_available, build_index_
 
 
 PIPELINE_STEPS = [
-    "step00_stage1_admission", "step01_golden_and_unit_tests", "step02_reference_and_membership",
+    "step00_stage1_admission", "step02_reference_and_membership",
     "step03_forward_labels", "step04_benchmark_and_calibration", "step05_baseline_factors",
     "step06_preprocessing", "step07_single_factor_evaluation",
     "step08_correlation_and_composites", "step09_reports",
@@ -54,6 +54,7 @@ PIPELINE_STEPS = [
 def pipeline_steps(verification="standard"):
     steps = list(PIPELINE_STEPS)
     if verification_mode(verification) == "audit":
+        steps.insert(1, "step01_golden_and_unit_tests")
         for anchor, repeat in (("step09_reports", "repeat_step9"),
                                ("step08_correlation_and_composites", "repeat_step8"),
                                ("step07_single_factor_evaluation", "repeat_step7")):
@@ -180,7 +181,8 @@ def run_stage2_pipeline(profile=None, record_run="latest", dry_run=False,
         raise ValueError("record_run accepts only letters, digits, underscore and hyphen")
     if dry_run:
         return {"dry_run": True, "steps": pipeline_steps(mode),
-                "requires": ["raw DATA_ROOT", "passed Stage 1 artifacts", "Python test dependencies"],
+                "requires": ["raw DATA_ROOT", "passed Stage 1 artifacts"] +
+                            (["Python test dependencies"] if mode == "audit" else []),
                 "network_downloads": False, "out_of_sample_evaluation": False,
                 **verification_metadata(mode)}
     started = time.perf_counter()
@@ -224,7 +226,8 @@ def run_stage2_pipeline(profile=None, record_run="latest", dry_run=False,
         def tests():
             subprocess.run([sys.executable, "-m", "pytest", "-q"], cwd=PROJECT_ROOT, check=True)
             return {"command": "python -m pytest -q"}
-        execute("step01_golden_and_unit_tests", tests, use_store=False)
+        if mode == "audit":
+            execute("step01_golden_and_unit_tests", tests, use_store=False)
 
         def references(store):
             build_index_member_available(store)
@@ -244,10 +247,11 @@ def run_stage2_pipeline(profile=None, record_run="latest", dry_run=False,
         def baseline(store):
             values = build_factor_values(store, config_root=config_root, factor_ids=baseline_ids)
             build_factor_coverage_report(store, config_root)
-            gate = check_truncation_invariance(store, truncation_dates, baseline_ids, config_root)
-            store.write_json(("verification", "step5_truncation.json"), gate)
-            if not gate["passed"]:
-                raise ValueError(f"Step 5 truncation failed: {gate['mismatches'][:5]}")
+            if mode == "audit":
+                gate = check_truncation_invariance(store, truncation_dates, baseline_ids, config_root)
+                store.write_json(("verification", "step5_truncation.json"), gate)
+                if not gate["passed"]:
+                    raise ValueError(f"Step 5 truncation failed: {gate['mismatches'][:5]}")
             return values
         execute("step05_baseline_factors", baseline)
         execute("step06_preprocessing", lambda store: build_factor_processed(
@@ -262,10 +266,11 @@ def run_stage2_pipeline(profile=None, record_run="latest", dry_run=False,
             build_composite_factors(store, config_root=config_root)
             build_factor_processed(store, config_root=config_root,
                                    factor_ids=composite_ids, merge_existing=True)
-            gate = check_truncation_invariance(store, truncation_dates, composite_ids, config_root)
-            store.write_json(("verification", "step8_truncation.json"), gate)
-            if not gate["passed"]:
-                raise ValueError(f"Step 8 truncation failed: {gate['mismatches'][:5]}")
+            if mode == "audit":
+                gate = check_truncation_invariance(store, truncation_dates, composite_ids, config_root)
+                store.write_json(("verification", "step8_truncation.json"), gate)
+                if not gate["passed"]:
+                    raise ValueError(f"Step 8 truncation failed: {gate['mismatches'][:5]}")
             evaluate_factors(store, factor_ids=composite_ids, config_root=config_root, merge_existing=True)
             # Rebind non-incremental artifacts to the now-merged processed panel.
             # Values are unchanged, but their upstream hashes become current.

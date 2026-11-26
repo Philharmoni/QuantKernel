@@ -68,7 +68,7 @@ def test_repeatability_compares_stage1_and_step7_to_9_evidence(tmp_path, golden_
         result = check_repeatability(store, verification="audit")
         assert result["passed"] and len(result["comparisons"]) == 11
         standard = check_repeatability(store)
-        assert standard["passed"] and len(standard["comparisons"]) == 1
+        assert standard["passed"] and not standard["comparisons"]
         assert not standard["stage2_executed"] and standard["status"] == "stage2_repeat_not_requested"
         path = store.paths.factor_root / "_repeat_step7_d" / "factor_research" / "l4" / "factor_summary" / "manifest.json"
         path.write_text(json.dumps({"rows": 1, "sha256": "different"}), encoding="utf-8")

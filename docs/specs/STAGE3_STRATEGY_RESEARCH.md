@@ -90,7 +90,9 @@ R1 使用 `adjusted_unit_proxy`：现金按真实模型成交额和费用变化�
 - 所有候选、诊断、失败、空结果和人工查看都登记；负结果不能删除。
 - 工程通过与经济晋级分开；无合格策略是合法结论。
 - 独立 L3/L4/L5、运行 manifest、预注册、trial 和报告组成证据链。
-- 全量与截断、双目录、现金/NAV、PIT、未来扰动和权限检查必须通过。
+- 日常使用必须通过当前输入、现金/NAV、PIT 和权限检查；独立双目录、历史保护基线及额外截断/未来扰动重建只在显式 `audit` 时要求。
+- `prepare_stage3_inputs.py` 准入成功后写入本地 `strategy_research/inputs/active_input.json`，后续步骤使用本次快照，不依赖旧设备的 bundle ID。
+- `scripts/build_stage3.py` 按依赖顺序一键执行已实现的 R1 构建和检查，失败即停；R2 仅执行负质量门，不运行 R2 回测、Step 11、确认段或 OOS。
 
 ## 9. 当前边界
 

@@ -70,7 +70,12 @@ def compute(store,start=None,end=None,input_end=None,spec=None,params=None):
     assert "factors" not in snapshot and "registry_version" not in snapshot
     assert "factor_id" not in snapshot["toy_factor"]
     assert "\n\ntoy_factor:" in snapshot_path.read_text(encoding="utf-8")
-    assert result["manifest"]["truncation"]["passed"] is True
+    assert result["manifest"]["truncation"]["passed"] is None
+    assert result["manifest"]["truncation"]["status"] == "not_requested"
+    audited = run_experiment("toy_factor", start="20200323", end="20200331",
+                             experiment_root=tmp_path / "experiments", source_root=source_root,
+                             verification="audit")
+    assert audited["manifest"]["truncation"]["passed"] is True
     loaded = load_experiment(root / "factor_values.parquet")
     assert loaded[1]["factor_id"] == "toy_factor"
     with pytest.raises(FileExistsError):

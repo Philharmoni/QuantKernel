@@ -173,8 +173,8 @@ repeatability:
   preferred_method: fixed_sort_order
 
 quality_gate:
-  # Step 10 always recomputes this cutoff for every registered factor; a saved
-  # "passed" flag alone is not accepted as truncation evidence.
+  # Audit recomputes this cutoff for every registered factor; standard records
+  # truncation as not_requested and does not require historical evidence.
   truncation_dates: ['20241231']
   deep_primary_keys_default: false
   bounded_repeat_start: '20240101'
@@ -185,4 +185,5 @@ quality_gate:
 # builder runs. Table/layer/key values must stay in sync with
 # core.quality.checks.TABLES (the Stage 1 definition of the nine core products).
 stage2_entry:
-  required_acceptance_evidence: [raw_unchanged, repeatability]
+  required_acceptance_evidence: [raw_unchanged]
+  audit_required_acceptance_evidence: [repeatability]

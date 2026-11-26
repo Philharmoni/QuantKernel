@@ -40,6 +40,19 @@ def load_stage3_contract(project_root: Path = PROJECT_ROOT) -> dict:
     errors = validate_contract(config, registry)
     if errors:
         raise ContractError("; ".join(errors))
+    pointer = project_root / config["delivery"]["root"] / "inputs" / "active_input.json"
+    if pointer.is_file():
+        try:
+            bundle_id = json.loads(pointer.read_text(encoding="utf-8"))["bundle_id"]
+            if not re.fullmatch(r"in_sample_[a-z0-9]+", bundle_id):
+                raise ValueError("invalid bundle_id")
+            bundle_root = project_root / config["delivery"]["root"] / "inputs" / bundle_id
+            delivery = config["delivery"]
+            delivery["active_input_bundle"] = bundle_id
+            delivery["input_bundle_manifest"] = (bundle_root / "manifest.json").relative_to(project_root).as_posix()
+            delivery["input_bundle_admission"] = (bundle_root / "admission.json").relative_to(project_root).as_posix()
+        except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as error:
+            raise ContractError(f"Invalid active Stage 3 input pointer: {pointer}: {error}") from error
     return {"config": config, "registry": registry, "config_sha256": canonical_hash(config),
             "registry_sha256": canonical_hash(registry)}
 

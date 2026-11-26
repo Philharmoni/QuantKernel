@@ -39,7 +39,7 @@ trade_date + ts_code + factor_id
 - 入场受阻、开盘涨停、出场顺延、退市和数据末端必须分别标记，不能删除困难样本或虚构收益。
 - 当前 horizons 和主评价 horizons 以 `configs/factor_research.yaml` 为准。
 
-带 `end` 的实验必须进行截断重算：只使用截止日及以前输入时，当日结果应与正常计算一致。
+日常实验和正式构建只计算本次请求的数据。显式 `--verification audit` 时，才额外执行截断重算、整包测试和独立重复构建；这些开发验收证据不作为 standard 使用前提。
 
 ## 5. 股票池与预处理
 

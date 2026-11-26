@@ -58,6 +58,16 @@ def test_passing_stage1_state_yields_a_bound_upstream_bundle(admitted_store):
     assert written == result
 
 
+def test_standard_entry_does_not_require_repeatability(admitted_store):
+    path = admitted_store.paths.output('l2', 'data_quality_report', 'report.json')
+    report = json.loads(path.read_text(encoding='utf-8'))
+    report['acceptance_evidence']['repeatability'] = {'passed': False, 'status': 'not_requested'}
+    path.write_text(json.dumps(report), encoding='utf-8')
+    assert check_stage2_entry(admitted_store, verification='standard')['passed']
+    with pytest.raises(ValueError, match='Stage 2 entry gate failed'):
+        check_stage2_entry(admitted_store, verification='audit')
+
+
 def test_bundle_hash_is_deterministic_across_repeated_checks(admitted_store):
     first = check_stage2_entry(admitted_store)
     second = check_stage2_entry(admitted_store)
@@ -96,6 +106,11 @@ def test_missing_acceptance_evidence_blocks_entry(tmp_path, golden_root):
         assert written["passed"] is False
         reasons = {f["check"] for f in written["failures"]}
         assert "acceptance_evidence_raw_unchanged_not_passed" in reasons
+        assert "acceptance_evidence_repeatability_not_passed" not in reasons
+        with pytest.raises(ValueError):
+            check_stage2_entry(store, verification="audit")
+        reasons = {f["check"] for f in json.loads(store.output(
+            "verification", "stage2_entry.json").read_text(encoding="utf-8"))["failures"]}
         assert "acceptance_evidence_repeatability_not_passed" in reasons
 
 

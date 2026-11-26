@@ -44,12 +44,14 @@ def test_repeat_policy_does_not_publish_in_standard_or_fast(tmp_path):
     assert manifest == {"tables": {}, "files": {}} and status == "executed" and calls == [True]
 
 
-def test_standard_uses_existing_repeat_without_publishing(tmp_path):
+def test_standard_ignores_stale_repeat_and_audit_reuses_valid_repeat(tmp_path):
     root = tmp_path / "repeat"
     root.mkdir()
     expected = {"tables": {"x": {"sha256": "same"}}, "files": {}}
     (root / "manifest.json").write_text(json.dumps(expected), encoding="utf-8")
     actual, status = resolve_repeat(root, lambda: (_ for _ in ()).throw(AssertionError()), "standard")
+    assert actual is None and status == "not_requested"
+    actual, status = resolve_repeat(root, lambda: (_ for _ in ()).throw(AssertionError()), "audit")
     assert actual == expected and status == "verified_existing"
     assert table_repeat_mismatches(expected, actual, ["x"]) == []
 
@@ -59,3 +61,4 @@ def test_g10_requires_audit_repeat_evidence():
     assert independent_repeat_complete({"3": {"verification": "audit", "repeat_status": "verified_existing"}})
     assert not independent_repeat_complete({"3": {"verification": "standard", "repeat_status": "not_requested"}})
     assert not independent_repeat_complete({"3": {"verification": "fast", "repeat_status": "skipped"}})
+    assert not independent_repeat_complete({"3": {}})

@@ -31,31 +31,37 @@ def main():
                 root / "runs" / config["delivery"]["active_step5_run"], config)
         repeat, repeat_status = resolve_repeat(repeat_root, lambda: publish_step6(
             builder(), repeat_root, repeat_root.name), mode)
-        truncated = builder().build(end_date=cutoff)
-        perturbed = builder().build(perturb_after=cutoff)
+        truncated_nav_prefix_mismatch = None
+        truncated_target_prefix_mismatch = None
+        future_quote_prefix_mismatch = None
+        if mode == "audit":
+            truncated = builder().build(end_date=cutoff)
+            perturbed = builder().build(perturb_after=cutoff)
+            full_nav = fetch_dicts(inputs.db, "SELECT * FROM read_parquet(?) WHERE trade_date<=? ORDER BY account_id,trade_date",
+                                   [str(run_root / "l5/account_nav_daily/part-00000.parquet"), cutoff])
+            full_targets = fetch_dicts(inputs.db, "SELECT * FROM read_parquet(?) WHERE planned_execution_date<=?",
+                                       [str(run_root / "l5/benchmark_target/part-00000.parquet"), cutoff])
+            trunc_nav = sorted_rows([row for row in truncated["account_nav_daily"] if row["trade_date"] <= cutoff],
+                                    ["account_id", "trade_date"])
+            trunc_targets = sorted_rows([row for row in truncated["benchmark_target"] if row["planned_execution_date"] <= cutoff],
+                                        ["benchmark_id", "signal_date", "ts_code"])
+            full_targets = sorted_rows(full_targets, ["benchmark_id", "signal_date", "ts_code"])
+            perturb_nav = sorted_rows([row for row in perturbed["account_nav_daily"] if row["trade_date"] <= cutoff],
+                                      ["account_id", "trade_date"])
+            truncated_nav_prefix_mismatch = int(full_nav != trunc_nav)
+            truncated_target_prefix_mismatch = int(full_targets != trunc_targets)
+            future_quote_prefix_mismatch = int(full_nav != perturb_nav)
         db = inputs.db
         nav_path = run_root / "l5/account_nav_daily/part-00000.parquet"
-        target_path = run_root / "l5/benchmark_target/part-00000.parquet"
-        full_nav = fetch_dicts(db, "SELECT * FROM read_parquet(?) WHERE trade_date<=? ORDER BY account_id,trade_date",
-                               [str(nav_path), cutoff])
-        full_targets = fetch_dicts(db, "SELECT * FROM read_parquet(?) WHERE planned_execution_date<=?",
-                                   [str(target_path), cutoff])
-        trunc_nav = sorted_rows([row for row in truncated["account_nav_daily"] if row["trade_date"] <= cutoff],
-                                ["account_id", "trade_date"])
-        trunc_targets = sorted_rows([row for row in truncated["benchmark_target"] if row["planned_execution_date"] <= cutoff],
-                                    ["benchmark_id", "signal_date", "ts_code"])
-        full_targets = sorted_rows(full_targets, ["benchmark_id", "signal_date", "ts_code"])
-        perturb_nav = sorted_rows([row for row in perturbed["account_nav_daily"] if row["trade_date"] <= cutoff],
-                                  ["account_id", "trade_date"])
         nav = f"read_parquet('{nav_path}')"
         performance = f"read_parquet('{run_root}/l5/performance/part-00000.parquet')"
         attribution = f"read_parquet('{run_root}/l5/attribution/part-00000.parquet')"
         observations = {
             "table_rows": {name: entry["rows"] for name, entry in manifest["tables"].items()},
             "repeat_hash_mismatches": table_repeat_mismatches(manifest, repeat, TABLE_KEYS),
-            "truncated_nav_prefix_mismatch": int(full_nav != trunc_nav),
-            "truncated_target_prefix_mismatch": int(full_targets != trunc_targets),
-            "future_quote_prefix_mismatch": int(full_nav != perturb_nav),
+            "truncated_nav_prefix_mismatch": truncated_nav_prefix_mismatch,
+            "truncated_target_prefix_mismatch": truncated_target_prefix_mismatch,
+            "future_quote_prefix_mismatch": future_quote_prefix_mismatch,
             "nav_identity_abs": db.execute(f"""SELECT max(greatest(abs(reference_nav_cny-total_cash-reference_position_value_cny),
                 abs(stress_nav_cny-total_cash-stress_position_value_cny))) FROM {nav}""").fetchone()[0],
             "calendar_inconsistent_days": db.execute(f"""SELECT count(*) FROM (
@@ -70,8 +76,10 @@ def main():
             "research_labels_read": "l3/forward_return" in manifest["input_read_log"],
         }
     failures = []
-    zero_checks = ("truncated_nav_prefix_mismatch", "truncated_target_prefix_mismatch", "future_quote_prefix_mismatch",
-                   "calendar_inconsistent_days", "non_r1_rows")
+    zero_checks = ("calendar_inconsistent_days", "non_r1_rows")
+    if mode == "audit":
+        zero_checks = ("truncated_nav_prefix_mismatch", "truncated_target_prefix_mismatch",
+                       "future_quote_prefix_mismatch") + zero_checks
     if observations["repeat_hash_mismatches"] or observations["research_labels_read"]:
         failures.append({"identity_or_permission": observations})
     for name in zero_checks:

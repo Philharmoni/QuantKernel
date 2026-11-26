@@ -10,11 +10,11 @@ def resolve_repeat(repeat_root, publisher=None, verification="standard"):
     root = Path(repeat_root)
     if mode == "fast":
         return None, "skipped"
+    if mode == "standard":
+        return None, "not_requested"
     manifest_path = root / "manifest.json"
     if manifest_path.is_file():
         return json.loads(manifest_path.read_text(encoding="utf-8")), "verified_existing"
-    if mode == "standard":
-        return None, "not_requested"
     if publisher is None:
         raise ValueError("Audit repeat requires a publisher")
     return publisher(), "executed"

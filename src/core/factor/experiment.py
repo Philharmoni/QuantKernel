@@ -17,6 +17,7 @@ from core.factor.plugin import factor_source_path, load_factor_compute
 from core.factor.registry import REQUIRED_FIELDS, factor_map, factor_registry_text, load_factor_registry
 from core.factor.report import build_factor_coverage_report
 from core.preprocess.panel import build_factor_processed
+from core.quality.verification import verification_metadata, verification_mode
 from core.universe.custom import CUSTOM_TABLES, custom_universe_identity
 
 EXPERIMENT_ROOT = PROJECT_ROOT / "factor_research" / "experiments"
@@ -84,7 +85,9 @@ def _experiment_spec(module, factor_id):
 
 
 def run_experiment(factor_id, start=None, end=None, input_end=None, params=None,
-                   note=None, profile=None, experiment_root=EXPERIMENT_ROOT, source_root=None):
+                   note=None, profile=None, experiment_root=EXPERIMENT_ROOT, source_root=None,
+                   verification="standard"):
+    mode = verification_mode(verification)
     official = load_paths(profile=profile)
     source_path = factor_source_path(factor_id, source_root)
     module = load_factor_compute(factor_id, source_root)
@@ -100,8 +103,8 @@ def run_experiment(factor_id, start=None, end=None, input_end=None, params=None,
                 upstream[f"{layer}/{path.parent.name}"] = _sha(path)
     identity = {"factor_id": factor_id, "spec": spec, "params": params,
                 "start": start, "end": end, "input_end": input_end,
-                "code_sha256": _sha(source_path), "core_code_hash": code_identity(),
-                "upstream": upstream}
+                "verification": mode, "code_sha256": _sha(source_path),
+                "core_code_hash": code_identity(), "upstream": upstream}
     experiment_id = "exp_" + hashlib.sha256(json_text(identity).encode()).hexdigest()[:16]
     target = Path(experiment_root) / factor_id / experiment_id
     staging = target.parent / ("." + experiment_id + ".staging")
@@ -142,7 +145,7 @@ def run_experiment(factor_id, start=None, end=None, input_end=None, params=None,
                 FROM {values_rel}""").fetchone()
             if not stats[0] or stats[0] != stats[1] or stats[5]:
                 raise ValueError(f"Invalid factor experiment values: {stats}")
-            truncation_date = end
+            truncation_date = end if mode == "audit" else None
             truncation = {"status": "not_requested", "passed": None}
             if truncation_date:
                 truncated = module.compute(store, start=truncation_date, end=truncation_date,
@@ -165,12 +168,13 @@ def run_experiment(factor_id, start=None, end=None, input_end=None, params=None,
                                       "primary_key": ["trade_date", "ts_code", "factor_id"]},
                     "code_sha256": identity["code_sha256"],
                     "core_code_hash": identity["core_code_hash"],
-                    "upstream": upstream, "truncation": truncation}
+                    "upstream": upstream, "truncation": truncation,
+                    **verification_metadata(mode)}
         _write_json(staging / "manifest.json", manifest)
         experiment = {"version": 1, "experiment_id": experiment_id, "factor_id": factor_id,
                       "factor_spec": spec, "params": params, "note": note,
                       "start": start, "end": end, "input_end": input_end, "status": "computed",
-                      "source": f"research/factors/{factor_id}/compute.py",
+                      "verification": mode, "source": f"research/factors/{factor_id}/compute.py",
                       "code_sha256": identity["code_sha256"], "upstream": upstream,
                       "rows": stats[0], "min_trade_date": str(stats[2]), "max_trade_date": str(stats[3])}
         (staging / "experiment.yaml").write_text(yaml.safe_dump(experiment, allow_unicode=True, sort_keys=False), encoding="utf-8")

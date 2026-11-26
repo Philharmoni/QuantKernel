@@ -255,7 +255,7 @@ def check_oos_status(store):
 def check_repeatability(store, verification="standard"):
     mode = verification_mode(verification)
     failures, comparisons = [], {}
-    stage1_executed = mode != "fast"
+    stage1_executed = mode == "audit"
     if stage1_executed:
         stage1_path = store.paths.output("verification", "repeatability.json")
         try:
@@ -355,7 +355,7 @@ def run_stage2_quality_gate(store, truncation_dates=None, deep_primary_keys=Fals
     checks["layering_lineage"] = check_layering(
         store, deep_primary_keys=deep_primary_keys, verification=mode)
     checks["pit"] = check_pit(store, config_root)
-    if dates:
+    if mode == "audit" and dates:
         logging.info("Unified truncation gate: %s", dates)
         truncation = check_truncation_invariance(store, dates, config_root=config_root)
         store.write_json(("verification", "step10_truncation.json"), truncation)
@@ -363,12 +363,15 @@ def run_stage2_quality_gate(store, truncation_dates=None, deep_primary_keys=Fals
             _failure("truncation_invariance", "factor_value", truncation["mismatches"][:5])
         ] if not truncation["passed"] else [], "compared_values": truncation["compared_values"],
             "dates": truncation["dates"]}
-    else:
+    elif mode == "audit":
         checks["truncation"] = {"passed": False, "failures": [_failure(
             "truncation_invariance", "factor_value", "no truncation date was executed")]}
+    else:
+        checks["truncation"] = {"passed": True, "status": "not_requested", "failures": []}
     checks["repeatability"] = check_repeatability(store, verification=mode)
     checks["out_of_sample"] = check_oos_status(store)
-    checks["documentation"] = check_documentation(docs_path)
+    checks["documentation"] = (check_documentation(docs_path) if mode == "audit" else
+                               {"passed": True, "status": "not_requested", "failures": []})
     failures = [failure for check in checks.values() for failure in check.get("failures", [])]
     report = {"passed": not failures, "code_hash": store.code_hash, "config_hash": store.config_hash,
               "research_registry_sha256": hashlib.sha256(json_text(

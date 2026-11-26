@@ -118,7 +118,8 @@ def main():
         if step1.exists():
             original = metadata_signature(json.loads(step1.read_text(encoding='utf-8')))
             raw_proof['unchanged_since_step1'] = original == after
-            raw_proof['passed'] = raw_proof['passed'] and raw_proof['unchanged_since_step1']
+            if verification_mode(args.verification) == 'audit':
+                raw_proof['passed'] = raw_proof['passed'] and raw_proof['unchanged_since_step1']
         with Store(paths) as store:
             store.write_json(('verification', 'raw_unchanged.json'), raw_proof)
             refresh = Quality(store, args.start, args.end, args.l0_scope, True,

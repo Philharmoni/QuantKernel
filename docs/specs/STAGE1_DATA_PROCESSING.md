@@ -12,7 +12,7 @@ Stage 1 把 TuShare 原始数据转换成可复用、可追溯、尽量符合历
 - `data_middle/l0/`：原始数据画像和轻量检查。
 - `data_middle/l1/`：标准行情、状态与财务数据。
 - `data_middle/l2/`：研究股票池和质量报告。
-- `verification/stage1/`：构建、质量和重复性证据。
+- `verification/stage1/`：本次构建和质量证据；独立重复性证据只在显式 `audit` 时要求。
 
 代码不得写死某台机器的绝对路径，路径由 `configs/paths.yaml` 和 profile 决定。
 

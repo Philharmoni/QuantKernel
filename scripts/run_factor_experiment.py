@@ -15,6 +15,7 @@
 factor_id: 因子 ID，对应 research/factors/<factor_id>/compute.py，不是文件路径。
 --start/--end: 输出与后续评价的日期闭区间。
 --param key=value: 传入 compute() 的 params；只有 compute() 主动读取才会影响计算。
+--verification: 默认 standard 单次计算；audit 额外执行截断一致性重算。
 
 输出与后续评价
 --------------
@@ -30,6 +31,7 @@ import yaml
 
 import _bootstrap  # noqa: F401
 from core.factor.experiment import run_experiment
+from core.quality.verification import add_verification_argument, verification_mode
 
 
 def main():
@@ -44,6 +46,7 @@ def main():
     parser.add_argument("--param", action="append", default=[], help="key=value; value is parsed as YAML")
     parser.add_argument("--note")
     parser.add_argument("--profile")
+    add_verification_argument(parser)
     args = parser.parse_args()
     params = {}
     for item in args.param:
@@ -53,7 +56,7 @@ def main():
         params[key] = yaml.safe_load(value)
     result = run_experiment(args.factor_id, start=args.start, end=args.end,
                             input_end=args.input_end, params=params, note=args.note,
-                            profile=args.profile)
+                            profile=args.profile, verification=verification_mode(args.verification))
     print(json.dumps({"experiment_id": result["experiment"]["experiment_id"],
                       "root": str(result["root"]), "rows": result["experiment"]["rows"],
                       "next": f"python scripts/evaluate_factor.py {result['root'] / 'factor_values.parquet'}"},

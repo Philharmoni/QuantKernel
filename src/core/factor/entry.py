@@ -68,7 +68,9 @@ def check_stage2_entry(store, config_root: Path | None = None, verification="sta
     mode = verification_mode(verification)
     verify_files = mode != "fast" if verify_files is None else verify_files
     research = load_settings('factor_research.yaml', config_root)
-    required_evidence = research['stage2_entry']['required_acceptance_evidence']
+    required_evidence = list(research['stage2_entry']['required_acceptance_evidence'])
+    if mode == 'audit':
+        required_evidence += research['stage2_entry'].get('audit_required_acceptance_evidence', [])
     failures = []
 
     def fail(table, check, fields, samples):
